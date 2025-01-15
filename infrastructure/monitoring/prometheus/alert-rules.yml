@@ -1,0 +1,102 @@
+# Prometheus Alert Rules Configuration v2.45.0
+# Defines monitoring thresholds and alerting conditions for EstateKit system
+
+groups:
+  # Performance monitoring alerts
+  - name: performance_alerts
+    rules:
+      - alert: HighResponseTime
+        expr: http_request_duration_seconds{quantile="0.95"} > 3
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: High API response time detected
+          description: 95th percentile response time exceeds 3 seconds threshold
+
+      - alert: HighConcurrentUsers
+        expr: sum(active_sessions) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: High concurrent user count
+          description: Number of concurrent users exceeds 1000 threshold
+
+      - alert: APIServiceDown
+        expr: up{job=~"business-api|data-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: API service is down
+          description: API service has been down for more than 1 minute
+
+  # Security monitoring alerts
+  - name: security_alerts
+    rules:
+      - alert: EncryptionCoverageDrop
+        expr: min(encryption_coverage_percent) < 100
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: Encryption coverage dropped
+          description: Some sensitive fields are not encrypted
+
+      - alert: AuditTrailGap
+        expr: min(audit_coverage_percent) < 100
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: Audit trail coverage gap
+          description: Some operations are not being audited
+
+      - alert: UnauthorizedAccessAttempts
+        expr: sum(rate(unauthorized_access_attempts_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: High number of unauthorized access attempts
+          description: More than 10 unauthorized access attempts per 5 minutes
+
+  # Reliability monitoring alerts  
+  - name: reliability_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."} [5m])) / sum(rate(http_requests_total[5m])) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          category: reliability
+        annotations:
+          summary: High error rate detected
+          description: Error rate exceeds 0.1% threshold
+
+      - alert: DocumentProcessingDelay
+        expr: avg(document_processing_duration_seconds) > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: reliability
+        annotations:
+          summary: Document processing delay
+          description: Average document processing time exceeds 30 seconds
+
+      - alert: DatabaseConnectionIssues
+        expr: sum(rate(database_connection_errors_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: reliability
+        annotations:
+          summary: Database connection issues detected
+          description: Database connection errors have been detected
