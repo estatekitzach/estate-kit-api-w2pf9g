@@ -1,0 +1,113 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  security-events: write
+  contents: read
+  actions: read
+  packages: read
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  TRIVY_SEVERITY: 'HIGH,CRITICAL'
+  CODEQL_LANGUAGES: 'csharp'
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # CodeQL Analysis
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ env.CODEQL_LANGUAGES }}
+          queries: security-and-quality
+
+      - name: Build solution for analysis
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+      # Container Scanning
+      - name: Build Business API container
+        run: docker build -t estatekit/business-api:scan ./src/backend/Business.API
+
+      - name: Build Data API container
+        run: docker build -t estatekit/data-api:scan ./src/backend/Data.API
+
+      - name: Scan Business API container
+        uses: aquasecurity/trivy-action@0.12.0
+        with:
+          image-ref: 'estatekit/business-api:scan'
+          format: 'sarif'
+          output: 'trivy-business-api-results.sarif'
+          severity: ${{ env.TRIVY_SEVERITY }}
+          vuln-type: 'os,library'
+
+      - name: Scan Data API container
+        uses: aquasecurity/trivy-action@0.12.0
+        with:
+          image-ref: 'estatekit/data-api:scan'
+          format: 'sarif'
+          output: 'trivy-data-api-results.sarif'
+          severity: ${{ env.TRIVY_SEVERITY }}
+          vuln-type: 'os,library'
+
+      # Dependency Scanning
+      - name: Check dependencies for vulnerabilities
+        run: |
+          dotnet restore
+          dotnet list package --vulnerable --include-transitive
+
+      # Upload Results
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: trivy-business-api-results.sarif
+          category: trivy-business-api
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: trivy-data-api-results.sarif
+          category: trivy-data-api
+
+      # Create Security Report
+      - name: Generate security report
+        if: always()
+        run: |
+          echo "# Security Scan Report" > security-report.md
+          echo "## CodeQL Analysis" >> security-report.md
+          echo "Status: ${{ job.status }}" >> security-report.md
+          echo "## Container Scans" >> security-report.md
+          echo "Business API: $(cat trivy-business-api-results.sarif | jq -r '.runs[0].results | length') findings" >> security-report.md
+          echo "Data API: $(cat trivy-data-api-results.sarif | jq -r '.runs[0].results | length') findings" >> security-report.md
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security-report.md
+          retention-days: 90
