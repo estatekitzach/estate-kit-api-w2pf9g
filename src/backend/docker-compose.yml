@@ -1,0 +1,177 @@
+version: "3.8"
+
+services:
+  business_api:
+    build:
+      context: ./Business.API
+      dockerfile: Dockerfile
+      args:
+        SCAN_ON_BUILD: "true"
+        ENABLE_SECURITY_SCAN: "true"
+    image: estatekit/business-api:latest
+    user: nonroot:nonroot
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - data_api
+      - redis
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: "2G"
+        reservations:
+          cpus: "0.5"
+          memory: "1G"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - AWS_REGION=us-east-1
+      - TZ=UTC
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+    volumes:
+      - /tmp:/tmp:rw
+      - /var/log:/var/log:rw
+
+  data_api:
+    build:
+      context: ./Data.API
+      dockerfile: Dockerfile
+      args:
+        SCAN_ON_BUILD: "true"
+        ENABLE_SECURITY_SCAN: "true"
+    image: estatekit/data-api:latest
+    user: nonroot:nonroot
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - postgres
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: "4G"
+        reservations:
+          cpus: "1"
+          memory: "2G"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - TZ=UTC
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_EnableDiagnostics=0
+    volumes:
+      - /tmp:/tmp:rw
+      - /data:/data:rw
+
+  redis:
+    image: redis:7.0-alpine
+    user: redis:redis
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: "8G"
+        reservations:
+          cpus: "0.5"
+          memory: "4G"
+    volumes:
+      - redis_data:/data:rw
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+
+  postgres:
+    image: postgres:15.0-alpine
+    user: postgres:postgres
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: "8G"
+        reservations:
+          cpus: "2"
+          memory: "4G"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=estatekit
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:rw
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+    driver_opts:
+      encrypt: "true"
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
