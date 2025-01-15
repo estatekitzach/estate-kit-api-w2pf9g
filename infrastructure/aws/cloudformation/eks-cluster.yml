@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Enhanced EKS cluster infrastructure for EstateKit system with comprehensive security and monitoring
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Environment name (e.g., Production, Staging, DR)
+    AllowedValues:
+      - Production
+      - Staging
+      - DR
+
+  ClusterVersion:
+    Type: String
+    Description: Kubernetes version for EKS cluster
+    Default: '1.27'
+
+  NodeInstanceType:
+    Type: String
+    Description: EC2 instance type for worker nodes
+    Default: 't3.large'
+
+  CustomAmiId:
+    Type: String
+    Description: Custom hardened AMI ID for worker nodes
+    Default: ''
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'Production']
+  IsDR: !Equals [!Ref EnvironmentName, 'DR']
+
+Mappings:
+  EnvironmentConfig:
+    Production:
+      NodeMinSize: 3
+      NodeMaxSize: 10
+      DesiredSize: 3
+      LogRetentionDays: 365
+    Staging:
+      NodeMinSize: 2
+      NodeMaxSize: 5
+      DesiredSize: 2
+      LogRetentionDays: 30
+    DR:
+      NodeMinSize: 2
+      NodeMaxSize: 10
+      DesiredSize: 2
+      LogRetentionDays: 365
+
+Resources:
+  # EKS Cluster Role
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
+
+  # EKS Node Role
+  EksNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+  # EKS Cluster
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub ${EnvironmentName}-estatekit-cluster
+      Version: !Ref ClusterVersion
+      RoleArn: !GetAtt EksClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds: 
+          - !ImportValue ApiSecurityGroupId
+        SubnetIds: !Split [',', !ImportValue PrivateSubnets]
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+            - Type: controllerManager
+            - Type: scheduler
+      EncryptionConfig:
+        - Provider:
+            KeyArn: !ImportValue EncryptionKeyArn
+          Resources:
+            - secrets
+      KubernetesNetworkConfig:
+        ServiceIpv4Cidr: 172.20.0.0/16
+        IpFamily: ipv4
+
+  # EKS Node Group
+  EksNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EksCluster
+      NodeRole: !GetAtt EksNodeRole.Arn
+      ScalingConfig:
+        MinSize: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, NodeMinSize]
+        MaxSize: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, NodeMaxSize]
+        DesiredSize: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, DesiredSize]
+      Subnets: !Split [',', !ImportValue PrivateSubnets]
+      InstanceTypes: 
+        - !Ref NodeInstanceType
+      AmiType: !If [!Not [!Equals [!Ref CustomAmiId, '']], CUSTOM, AL2_x86_64]
+      RemoteAccess:
+        Ec2SshKey: !If [IsProduction, !Ref AWS::NoValue, eks-nodes]
+      Labels:
+        environment: !Ref EnvironmentName
+      Tags:
+        Name: !Sub ${EnvironmentName}-eks-node
+        CostCenter: EstateKit-Infrastructure
+      LaunchTemplate:
+        Id: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+
+  # Node Launch Template
+  NodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}-node-template
+      LaunchTemplateData:
+        ImageId: !If [!Not [!Equals [!Ref CustomAmiId, '']], !Ref CustomAmiId, !Ref AWS::NoValue]
+        InstanceType: !Ref NodeInstanceType
+        UserData: 
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            /etc/eks/bootstrap.sh ${EksCluster} \
+              --container-runtime containerd \
+              --kubelet-extra-args '--event-qps=0'
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 100
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+        Monitoring:
+          Enabled: true
+
+  # CloudWatch Log Group
+  ClusterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/eks/${EnvironmentName}-estatekit-cluster
+      RetentionInDays: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, LogRetentionDays]
+
+Outputs:
+  ClusterName:
+    Description: EKS cluster name
+    Value: !Ref EksCluster
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterName
+
+  ClusterEndpoint:
+    Description: EKS cluster endpoint
+    Value: !GetAtt EksCluster.Endpoint
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterEndpoint
+
+  ClusterSecurityGroup:
+    Description: Security group for cluster control plane
+    Value: !GetAtt EksCluster.ClusterSecurityGroupId
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterSecurityGroup
+
+  ClusterOIDCProvider:
+    Description: OpenID Connect provider URL
+    Value: !GetAtt EksCluster.OpenIdConnectProviderUrl
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterOIDCProvider
+
+  NodeGroupArn:
+    Description: EKS Node Group ARN
+    Value: !GetAtt EksNodeGroup.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-NodeGroupArn
