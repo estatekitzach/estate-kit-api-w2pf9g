@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Import common build properties -->
+  <Import Project="../Directory.Build.props" />
+  <Import Project="../Directory.Packages.props" />
+
+  <!-- Core project properties -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>EstateKit.Core</RootNamespace>
+    <AssemblyName>EstateKit.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- Enhanced security settings -->
+    <AnalysisMode>All</AnalysisMode>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    
+    <!-- Assembly signing -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!-- Package references -->
+  <ItemGroup>
+    <!-- Data annotations for entity validation -->
+    <PackageReference Include="System.ComponentModel.Annotations" 
+                      Version="$(SystemComponentModelAnnotationsVersion)" />
+    
+    <!-- Data protection for field-level encryption -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" 
+                      Version="$(AspNetCoreDataProtectionVersion)" />
+    
+    <!-- Cryptographic operations -->
+    <PackageReference Include="System.Security.Cryptography.Algorithms" 
+                      Version="$(SystemSecurityCryptographyVersion)" />
+  </ItemGroup>
+
+</Project>
