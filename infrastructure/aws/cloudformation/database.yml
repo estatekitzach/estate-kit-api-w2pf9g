@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: RDS PostgreSQL database infrastructure for EstateKit system with enhanced security and performance configurations
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Environment name for deployment
+    AllowedValues:
+      - Production
+      - Staging
+    Default: Production
+
+  DatabaseName:
+    Type: String
+    Description: Name of the EstateKit database
+    Default: estatekit
+    MinLength: 3
+    MaxLength: 64
+
+  DatabaseUser:
+    Type: String
+    Description: Master username for database access
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 16
+
+  DatabasePassword:
+    Type: String
+    Description: Master password for database access
+    NoEcho: true
+    MinLength: 16
+    MaxLength: 41
+
+Mappings:
+  EnvironmentConfig:
+    Production:
+      InstanceClass: db.r6g.xlarge
+      ReadReplicaClass: db.r6g.large
+      MultiAZ: true
+      BackupRetention: 7
+    Staging:
+      InstanceClass: db.r6g.large
+      ReadReplicaClass: db.r6g.medium
+      MultiAZ: false
+      BackupRetention: 3
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, Production]
+
+Resources:
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS database placement
+      SubnetIds: !Split [',', !ImportValue PrivateSubnets]
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Purpose
+          Value: Database
+
+  DatabaseParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: postgres15
+      Description: Custom parameter group for EstateKit database
+      Parameters:
+        shared_buffers: '8192MB'
+        max_connections: '1000'
+        work_mem: '64MB'
+        maintenance_work_mem: '2GB'
+        effective_cache_size: '24GB'
+        ssl: '1'
+        rds.force_ssl: '1'
+        log_statement: 'all'
+        log_min_duration_statement: '1000'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      EngineVersion: '15.0'
+      DBName: !Ref DatabaseName
+      MasterUsername: !Ref DatabaseUser
+      MasterUserPassword: !Ref DatabasePassword
+      DBInstanceClass: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, InstanceClass]
+      MultiAZ: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, MultiAZ]
+      StorageType: io1
+      Iops: 3000
+      AllocatedStorage: 100
+      MaxAllocatedStorage: 1000
+      BackupRetentionPeriod: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, BackupRetention]
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'mon:04:00-mon:05:00'
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      StorageEncrypted: true
+      DeletionProtection: true
+      EnableIAMDatabaseAuthentication: true
+      MonitoringInterval: 60
+      AutoMinorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      PubliclyAccessible: false
+      Port: 5432
+      VPCSecurityGroups: 
+        - !ImportValue DataApiSecurityGroupId
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      DBParameterGroupName: !Ref DatabaseParameterGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-estatekit-primary
+
+  DatabaseReadReplica:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      SourceDBInstanceIdentifier: !Ref DatabaseInstance
+      DBInstanceClass: !FindInMap [EnvironmentConfig, !Ref EnvironmentName, ReadReplicaClass]
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      MonitoringInterval: 60
+      AutoMinorVersionUpgrade: true
+      PubliclyAccessible: false
+      VPCSecurityGroups: 
+        - !ImportValue DataApiSecurityGroupId
+      DBParameterGroupName: !Ref DatabaseParameterGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-estatekit-replica
+
+  DatabaseMonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+
+  DatabaseAlarmHighCPU:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when database CPU exceeds 80% for 5 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      AlarmActions: 
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:EstateKitAlerts
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstance
+      ComparisonOperator: GreaterThanThreshold
+
+Outputs:
+  DatabaseEndpoint:
+    Description: Primary database endpoint address
+    Value: !GetAtt DatabaseInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${EnvironmentName}-DatabaseEndpoint
+
+  ReadReplicaEndpoint:
+    Description: Read replica endpoint address
+    Value: !GetAtt DatabaseReadReplica.Endpoint.Address
+    Export:
+      Name: !Sub ${EnvironmentName}-ReadReplicaEndpoint
+
+  DatabasePort:
+    Description: Database port number
+    Value: !GetAtt DatabaseInstance.Endpoint.Port
+    Export:
+      Name: !Sub ${EnvironmentName}-DatabasePort
+
+  DatabaseName:
+    Description: Database name
+    Value: !Ref DatabaseName
+    Export:
+      Name: !Sub ${EnvironmentName}-DatabaseName
