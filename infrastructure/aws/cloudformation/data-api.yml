@@ -1,0 +1,241 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation template for EstateKit Data Access API infrastructure with enhanced security and monitoring capabilities
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (e.g., prod, staging)
+    AllowedValues:
+      - prod
+      - staging
+  
+  ContainerImage:
+    Type: String
+    Description: Docker image URI for the Data API container
+  
+  ContainerPort:
+    Type: Number
+    Description: Container port number
+    Default: 443
+  
+  DesiredCount:
+    Type: Number
+    Description: Desired number of container instances
+    Default: 3
+    MinValue: 1
+  
+  HealthCheckPath:
+    Type: String
+    Description: Health check endpoint path
+    Default: /health
+  
+  MinContainers:
+    Type: Number
+    Description: Minimum number of containers
+    Default: 2
+    MinValue: 1
+  
+  MaxContainers:
+    Type: Number
+    Description: Maximum number of containers
+    Default: 10
+    MinValue: 1
+  
+  MemoryReservation:
+    Type: Number
+    Description: Container memory reservation in MB
+    Default: 2048
+    MinValue: 1024
+  
+  CPUReservation:
+    Type: Number
+    Description: Container CPU reservation in units
+    Default: 1024
+    MinValue: 256
+  
+  EncryptionServiceEndpoint:
+    Type: String
+    Description: Endpoint URL for the EstateKit encryption service
+  
+  LogRetentionDays:
+    Type: Number
+    Description: CloudWatch log retention period in days
+    Default: 30
+    MinValue: 1
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, 'prod']
+  RequiresHighAvailability: !Equals [!Ref Environment, 'prod']
+
+Resources:
+  # ECS Cluster
+  DataApiCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub estatekit-data-api-${Environment}
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: DataAPI
+
+  # CloudWatch Log Group
+  DataApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/ecs/data-api-${Environment}
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Task Definition
+  DataApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: data-api
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: !Ref CPUReservation
+      Memory: !Ref MemoryReservation
+      ExecutionRoleArn: !ImportValue 
+        'Fn::Sub': '${Environment}-ApiServiceRoleArn'
+      TaskRoleArn: !ImportValue 
+        'Fn::Sub': '${Environment}-ApiServiceRoleArn'
+      ContainerDefinitions:
+        - Name: data-api
+          Image: !Ref ContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          Environment:
+            - Name: ASPNETCORE_ENVIRONMENT
+              Value: !Ref Environment
+            - Name: ENCRYPTION_SERVICE_ENDPOINT
+              Value: !Ref EncryptionServiceEndpoint
+            - Name: DATABASE_ENDPOINT
+              Value: !ImportValue 
+                'Fn::Sub': '${Environment}-DatabaseEndpoint'
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:${ContainerPort}/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref DataApiLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: data-api
+          Secrets:
+            - Name: DATABASE_PASSWORD
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/estatekit/${Environment}/database/password
+
+  # Service Discovery
+  ServiceDiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Sub data-api.${Environment}.local
+      Vpc: !ImportValue 
+        'Fn::Sub': '${Environment}-VpcId'
+
+  ServiceDiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: data-api
+      DnsConfig:
+        NamespaceId: !Ref ServiceDiscoveryNamespace
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 3
+
+  # ECS Service
+  DataApiService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref DataApiCluster
+      ServiceName: !Sub data-api-${Environment}
+      TaskDefinition: !Ref DataApiTaskDefinition
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Split [',', !ImportValue 'DataSubnets']
+          SecurityGroups: 
+            - !ImportValue 'DataApiSecurityGroupId'
+          AssignPublicIp: DISABLED
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ServiceDiscoveryService.Arn
+
+  # Auto Scaling
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MaxContainers
+      MinCapacity: !Ref MinContainers
+      ResourceId: !Sub service/${DataApiCluster}/${DataApiService.Name}
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+
+  CPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${Environment}-data-api-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  MemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${Environment}-data-api-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: 80
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+Outputs:
+  DataApiServiceName:
+    Description: Name of the Data API ECS service
+    Value: !GetAtt DataApiService.Name
+    Export:
+      Name: !Sub ${Environment}-DataApiServiceName
+
+  DataApiClusterArn:
+    Description: ARN of the Data API ECS cluster
+    Value: !GetAtt DataApiCluster.Arn
+    Export:
+      Name: !Sub ${Environment}-DataApiClusterArn
+
+  DataApiServiceDiscoveryEndpoint:
+    Description: Service discovery endpoint for Data API
+    Value: !GetAtt ServiceDiscoveryService.Name
+    Export:
+      Name: !Sub ${Environment}-DataApiServiceDiscoveryEndpoint
