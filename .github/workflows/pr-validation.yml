@@ -1,0 +1,181 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - '.github/workflows/**'
+      - '*.props'
+      - '*.sln'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  CONFIGURATION: 'Release'
+  MIN_COVERAGE: '80'
+  TEST_TIMEOUT: '10m'
+
+jobs:
+  build:
+    name: Build and Analyze
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        cache: true
+
+    - name: Restore Dependencies
+      run: |
+        dotnet restore src/EstateKit.sln
+        dotnet tool restore
+
+    - name: Build Solution
+      run: |
+        dotnet build src/EstateKit.sln \
+          --configuration ${{ env.CONFIGURATION }} \
+          --no-restore \
+          -warnaserror
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: src/**/bin/${{ env.CONFIGURATION }}
+
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres_test
+          POSTGRES_DB: estatekit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        cache: true
+
+    - name: Run Unit Tests - Business API
+      run: |
+        dotnet test src/backend/Tests/Business.API.Tests/Business.API.Tests.csproj \
+          --configuration ${{ env.CONFIGURATION }} \
+          --no-build \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          --logger "trx;LogFileName=business_api_tests.trx" \
+          --settings src/backend/Tests/coverlet.runsettings \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat=cobertura \
+          /p:CoverletOutput=./coverage/business_api_coverage.xml \
+          /p:Threshold=${{ env.MIN_COVERAGE }}
+
+    - name: Run Unit Tests - Data API
+      run: |
+        dotnet test src/backend/Tests/Data.API.Tests/Data.API.Tests.csproj \
+          --configuration ${{ env.CONFIGURATION }} \
+          --no-build \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          --logger "trx;LogFileName=data_api_tests.trx" \
+          --settings src/backend/Tests/coverlet.runsettings \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat=cobertura \
+          /p:CoverletOutput=./coverage/data_api_coverage.xml \
+          /p:Threshold=${{ env.MIN_COVERAGE }}
+
+    - name: Run Integration Tests
+      run: |
+        dotnet test src/backend/Tests/Integration.Tests/Integration.Tests.csproj \
+          --configuration ${{ env.CONFIGURATION }} \
+          --no-build \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          --logger "trx;LogFileName=integration_tests.trx" \
+          --settings src/backend/Tests/coverlet.runsettings \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat=cobertura \
+          /p:CoverletOutput=./coverage/integration_coverage.xml \
+          /p:Threshold=${{ env.MIN_COVERAGE }}
+      env:
+        ConnectionStrings__DefaultConnection: "Host=localhost;Database=estatekit_test;Username=postgres;Password=postgres_test"
+      timeout-minutes: 10
+
+    - name: Generate Test Report
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: Test Results
+        path: coverage/*.trx
+        reporter: dotnet-trx
+        fail-on-error: true
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      if: success() || failure()
+      with:
+        name: test-results
+        path: |
+          coverage/*.trx
+          coverage/*.xml
+
+  security:
+    name: Security Analysis
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: csharp
+        queries: security-extended,security-and-quality
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Build for Analysis
+      run: |
+        dotnet build src/EstateKit.sln \
+          --configuration ${{ env.CONFIGURATION }}
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:csharp"
+
+    - name: Upload SARIF Results
+      uses: github/codeql-action/upload-sarif@v2
+      if: success() || failure()
+      with:
+        sarif_file: results.sarif
