@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Security infrastructure with enhanced protection mechanisms for EstateKit Personal Information API system
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Environment name (e.g., Production, Staging)
+    AllowedValues:
+      - Production
+      - Staging
+
+  KeyRotationDays:
+    Type: Number
+    Description: Number of days for KMS key rotation
+    Default: 90
+    MinValue: 30
+    MaxValue: 365
+
+  RateLimitThreshold:
+    Type: Number
+    Description: Maximum requests per 5-minute period per IP
+    Default: 2000
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, Production]
+
+Resources:
+  # WAF Web ACL with rate limiting and security rules
+  WafWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub ${EnvironmentName}-EstateKit-WebACL
+      Description: WAF Web ACL with rate limiting and security rules for EstateKit API
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      Rules:
+        - Name: RateLimitRule
+          Priority: 1
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitMetric
+          Statement:
+            RateBasedStatement:
+              AggregateKeyType: IP
+              Limit: !Ref RateLimitThreshold
+        - Name: SQLInjectionRule
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            SQLiInjectionMatchStatement:
+              FieldToMatch:
+                AllQueryArguments: {}
+              TextTransformations:
+                - Priority: 1
+                  Type: URL_DECODE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: SQLInjectionMetric
+        - Name: XSSRule
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            XssMatchStatement:
+              FieldToMatch:
+                Body: {}
+              TextTransformations:
+                - Priority: 1
+                  Type: NONE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: XSSMetric
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: EstateKitWAFMetrics
+
+  # KMS Key for field-level encryption
+  EncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for field-level encryption with automatic rotation
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+          - Sid: Allow API Service Access
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:role/EstateKitAPIRole
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Purpose
+          Value: FieldLevelEncryption
+
+  # Security Groups
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for API instances with strict rules
+      VpcId: !ImportValue 
+        Fn::Sub: ${AWS::StackName}-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS inbound
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS outbound
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-api-security-group
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for database instances
+      VpcId: !ImportValue 
+        Fn::Sub: ${AWS::StackName}-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApiSecurityGroup
+          Description: PostgreSQL from API
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-db-security-group
+
+  # IAM Role for API Service
+  ApiServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-EstateKitAPIRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt EncryptionKey.Arn
+
+Outputs:
+  WebAclArn:
+    Description: WAF Web ACL ARN
+    Value: !GetAtt WafWebAcl.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-WebAclArn
+
+  EncryptionKeyArn:
+    Description: KMS Encryption Key ARN
+    Value: !GetAtt EncryptionKey.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-EncryptionKeyArn
+
+  ApiSecurityGroupId:
+    Description: API Security Group ID
+    Value: !Ref ApiSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiSecurityGroupId
+
+  DatabaseSecurityGroupId:
+    Description: Database Security Group ID
+    Value: !Ref DatabaseSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSecurityGroupId
+
+  ApiServiceRoleArn:
+    Description: API Service IAM Role ARN
+    Value: !GetAtt ApiServiceRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiServiceRoleArn
