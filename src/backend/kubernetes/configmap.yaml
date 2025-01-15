@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: estatekit-config
+  namespace: estatekit
+  labels:
+    app: estatekit
+    component: config
+    environment: production
+data:
+  # Business API Configuration
+  business-api.json: |
+    {
+      "GraphQL": {
+        "Path": "/graphql",
+        "EnableMetrics": true,
+        "EnableSubscriptions": true,
+        "EnablePlayground": false,
+        "MaxAllowedComplexity": 1000,
+        "MaxExecutionTimeout": "00:00:30",
+        "EnableBatchedRequests": true,
+        "EnableCompression": true,
+        "MaxRequestSizeBytes": 20971520
+      },
+      "Monitoring": {
+        "CloudWatch": {
+          "Enabled": true,
+          "MetricNamespace": "EstateKit/BusinessAPI/Prod",
+          "FlushIntervalSeconds": 60
+        },
+        "XRay": {
+          "Enabled": true,
+          "SamplingRate": 0.1,
+          "CollectSqlQueries": true
+        },
+        "OpenTelemetry": {
+          "Enabled": true,
+          "ServiceName": "BusinessAPI"
+        }
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Warning",
+          "Microsoft.Hosting.Lifetime": "Information"
+        }
+      },
+      "Cors": {
+        "AllowedOrigins": [
+          "https://*.estatekit.com"
+        ],
+        "AllowedMethods": [
+          "GET",
+          "POST"
+        ],
+        "AllowedHeaders": [
+          "Authorization",
+          "Content-Type"
+        ],
+        "MaxAge": 3600
+      }
+    }
+
+  # Data API Configuration  
+  data-api.json: |
+    {
+      "Database": {
+        "MaxPoolSize": 100,
+        "CommandTimeout": 30,
+        "EnableRetryOnFailure": true,
+        "RetryCount": 3,
+        "RetryInterval": 5,
+        "EnableReadReplicaRouting": true,
+        "ReadReplicaLoadBalancing": "RoundRobin"
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information", 
+          "Microsoft": "Warning",
+          "Microsoft.Hosting.Lifetime": "Information",
+          "Microsoft.EntityFrameworkCore": "Warning"
+        }
+      }
+    }
