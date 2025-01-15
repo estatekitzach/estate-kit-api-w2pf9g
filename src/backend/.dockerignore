@@ -1,0 +1,64 @@
+.git
+.gitignore
+
+# IDE Directories
+.vs/
+.vscode/
+.idea/
+**/*.user
+**/*.suo
+**/*.userosscache
+
+# Build Output
+**/[Bb]in/
+**/[Oo]bj/
+**/[Dd]ebug/
+**/[Rr]elease/
+**/x64/
+**/x86/
+
+# Dependencies
+**/node_modules/
+**/packages/
+
+# Configuration Files
+**/*.Development.json
+**/appsettings.*.json
+**/connection-strings.json
+**/launchSettings.json
+**/.env*
+**/Properties/
+
+# Security Files
+**/*.pfx
+**/*.key
+**/secrets.yaml
+**/credentials.json
+**/certificate*.pfx
+**/private*.key
+
+# Test Files
+**/[Tt]ests/
+**/coverage/
+**/testresults/
+**/.sonarqube/
+
+# Documentation
+**/[Dd]ocs/
+**/*.md
+**/*.pdf
+**/*.docx
+
+# Temporary Files
+**/[Tt]emp/
+**/*.tmp
+**/*.temp
+
+# Docker and Deployment
+docker-compose*
+kubernetes/
+scripts/
+
+# Development Artifacts
+**/*.Development.*
+**/*.Local.*
