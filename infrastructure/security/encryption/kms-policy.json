@@ -1,0 +1,145 @@
+{
+  "Version": "2012-10-17",
+  "Id": "estatekit-field-encryption-key-policy",
+  "Statement": [
+    {
+      "Sid": "EnableKeyAdministrators",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::*:role/EstateKitSecurityAdmin"
+      },
+      "Action": [
+        "kms:Create*",
+        "kms:Describe*",
+        "kms:Enable*",
+        "kms:List*", 
+        "kms:Put*",
+        "kms:Update*",
+        "kms:Revoke*",
+        "kms:Disable*",
+        "kms:Get*",
+        "kms:Delete*",
+        "kms:ScheduleKeyDeletion",
+        "kms:CancelKeyDeletion",
+        "kms:TagResource",
+        "kms:UntagResource"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalType": "User",
+          "aws:RequestedRegion": ["us-east-1", "us-west-2"]
+        }
+      }
+    },
+    {
+      "Sid": "AllowKeyUsageForServices",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": [
+          "business-api.estatekit.com",
+          "data-api.estatekit.com",
+          "encryption-service.estatekit.com"
+        ]
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalType": "Service",
+          "aws:Service": [
+            "business-api.estatekit.com",
+            "data-api.estatekit.com",
+            "encryption-service.estatekit.com"
+          ]
+        },
+        "Bool": {
+          "aws:SecureTransport": "true"
+        }
+      }
+    },
+    {
+      "Sid": "EnableKeyRotation",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::*:role/EstateKitKeyRotationService"
+      },
+      "Action": [
+        "kms:EnableKeyRotation",
+        "kms:GetKeyRotationStatus",
+        "kms:DisableKeyRotation",
+        "kms:UpdateKeyDescription"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalType": ["Service", "User"],
+          "aws:RequestedRegion": ["us-east-1", "us-west-2"]
+        }
+      }
+    },
+    {
+      "Sid": "EnableKeyAuditing",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::*:role/EstateKitSecurityAuditor"
+      },
+      "Action": [
+        "kms:GetKeyRotationStatus",
+        "kms:GetKeyPolicy",
+        "kms:ListKeyPolicies",
+        "kms:ListResourceTags",
+        "kms:ListRetirableGrants",
+        "kms:ListGrants",
+        "kms:DescribeKey",
+        "kms:GetParametersForImport",
+        "kms:ListAliases",
+        "kms:ListKeys"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalType": "User",
+          "aws:RequestedRegion": ["us-east-1", "us-west-2"]
+        },
+        "Bool": {
+          "aws:SecureTransport": "true",
+          "aws:MultiFactorAuthPresent": "true"
+        }
+      }
+    },
+    {
+      "Sid": "DenyKeyDeletionByDefault",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "kms:ScheduleKeyDeletion",
+        "kms:DeleteImportedKeyMaterial"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RequireEncryptionContext",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "Null": {
+          "kms:EncryptionContext:dataType": "true"
+        }
+      }
+    }
+  ]
+}
