@@ -1,0 +1,168 @@
+{
+  "Version": "2023-01-01",
+  "webACLConfig": {
+    "description": "WAF configuration for EstateKit APIs",
+    "rules": [
+      {
+        "name": "RateLimitRule",
+        "priority": 1,
+        "overrideAction": "none",
+        "visibilityConfig": {
+          "sampledRequestsEnabled": true,
+          "cloudWatchMetricsEnabled": true,
+          "metricName": "RateLimitRule"
+        },
+        "statement": {
+          "rateBasedStatement": {
+            "limit": 1000,
+            "aggregateKeyType": "IP"
+          }
+        }
+      },
+      {
+        "name": "SQLInjectionRule",
+        "priority": 2,
+        "overrideAction": "none",
+        "visibilityConfig": {
+          "sampledRequestsEnabled": true,
+          "cloudWatchMetricsEnabled": true,
+          "metricName": "SQLInjectionRule"
+        },
+        "statement": {
+          "sqlInjectionMatchStatement": {
+            "fieldToMatch": {
+              "body": {},
+              "queryString": {},
+              "uriPath": {}
+            },
+            "textTransformations": [
+              {
+                "priority": 1,
+                "type": "URL_DECODE"
+              },
+              {
+                "priority": 2,
+                "type": "HTML_ENTITY_DECODE"
+              },
+              {
+                "priority": 3,
+                "type": "LOWERCASE"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "XSSRule",
+        "priority": 3,
+        "overrideAction": "none",
+        "visibilityConfig": {
+          "sampledRequestsEnabled": true,
+          "cloudWatchMetricsEnabled": true,
+          "metricName": "XSSRule"
+        },
+        "statement": {
+          "xssMatchStatement": {
+            "fieldToMatch": {
+              "body": {},
+              "queryString": {},
+              "uriPath": {},
+              "headers": {
+                "oversize_handling": "CONTINUE",
+                "headers_to_match": ["cookie", "referer"]
+              }
+            },
+            "textTransformations": [
+              {
+                "priority": 1,
+                "type": "URL_DECODE"
+              },
+              {
+                "priority": 2,
+                "type": "HTML_ENTITY_DECODE"
+              },
+              {
+                "priority": 3,
+                "type": "LOWERCASE"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "IPReputationRule",
+        "priority": 4,
+        "overrideAction": "none",
+        "visibilityConfig": {
+          "sampledRequestsEnabled": true,
+          "cloudWatchMetricsEnabled": true,
+          "metricName": "IPReputationRule"
+        },
+        "statement": {
+          "managedRuleGroupStatement": {
+            "vendorName": "AWS",
+            "name": "AWSManagedRulesAmazonIpReputationList",
+            "excludedRules": []
+          }
+        }
+      },
+      {
+        "name": "CommonRuleSet",
+        "priority": 5,
+        "overrideAction": "none",
+        "visibilityConfig": {
+          "sampledRequestsEnabled": true,
+          "cloudWatchMetricsEnabled": true,
+          "metricName": "CommonRuleSet"
+        },
+        "statement": {
+          "managedRuleGroupStatement": {
+            "vendorName": "AWS",
+            "name": "AWSManagedRulesCommonRuleSet",
+            "excludedRules": []
+          }
+        }
+      }
+    ],
+    "defaultAction": {
+      "allow": {}
+    },
+    "visibilityConfig": {
+      "sampledRequestsEnabled": true,
+      "cloudWatchMetricsEnabled": true,
+      "metricName": "EstateKitWAFMetrics"
+    },
+    "customResponseBodies": {
+      "rateLimitExceeded": {
+        "contentType": "APPLICATION_JSON",
+        "content": "{\"error\":\"Rate limit exceeded\",\"code\":429,\"message\":\"Too many requests\",\"retryAfter\":60}"
+      },
+      "blockedRequest": {
+        "contentType": "APPLICATION_JSON",
+        "content": "{\"error\":\"Access denied\",\"code\":403,\"message\":\"Request blocked by WAF\"}"
+      }
+    }
+  },
+  "metrics": {
+    "enabled": true,
+    "namespace": "EstateKit/WAF",
+    "dimensions": ["Rule", "WebACL", "Region", "Action", "RuleGroup"],
+    "samplingRate": 100,
+    "retentionDays": 90
+  },
+  "logging": {
+    "enabled": true,
+    "destination": "CloudWatch",
+    "samplingEnabled": true,
+    "samplingRate": 100,
+    "redactedFields": [
+      "Authorization",
+      "Cookie",
+      "X-Api-Key",
+      "X-Session-Token"
+    ],
+    "retentionDays": 90,
+    "logFormat": "JSON",
+    "includeHeaders": true
+  }
+}
