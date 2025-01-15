@@ -1,0 +1,132 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+        type: string
+
+# Ensure only one deployment runs at a time
+concurrency:
+  group: staging
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-east-1
+  NAMESPACE: estatekit-staging
+  DEPLOY_TIMEOUT: '600'
+  HEALTH_CHECK_RETRIES: '5'
+
+jobs:
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+      url: https://staging-api.estatekit.com
+    
+    permissions:
+      id-token: write
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-staging
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registries: ${{ secrets.AWS_ACCOUNT_ID }}
+
+      - name: Run SAST scan
+        uses: github/codeql-action/analyze@v2
+        with:
+          languages: csharp
+          queries: security-extended
+          
+      - name: Scan dependencies
+        run: |
+          dotnet restore
+          dotnet list package --vulnerable --include-transitive
+
+      - name: Scan container images
+        run: |
+          trivy image ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/estatekit/business-api:latest
+          trivy image ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/estatekit/data-api:latest
+
+      - name: Pre-deployment validation
+        run: |
+          chmod +x ./scripts/validate-deployment.sh
+          ./scripts/validate-deployment.sh
+        env:
+          ENVIRONMENT: staging
+          NAMESPACE: ${{ env.NAMESPACE }}
+
+      - name: Deploy applications
+        run: |
+          chmod +x ./src/backend/scripts/deploy.sh
+          ./src/backend/scripts/deploy.sh
+        env:
+          ENVIRONMENT: staging
+          NAMESPACE: ${{ env.NAMESPACE }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          DEPLOY_TIMEOUT: ${{ env.DEPLOY_TIMEOUT }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+
+      - name: Health check
+        run: |
+          chmod +x ./scripts/health-check.sh
+          ./scripts/health-check.sh
+        env:
+          RETRIES: ${{ env.HEALTH_CHECK_RETRIES }}
+          API_URL: https://staging-api.estatekit.com
+          
+      - name: Verify security controls
+        run: |
+          kubectl get networkpolicies -n ${{ env.NAMESPACE }}
+          kubectl get podsecuritypolicies -n ${{ env.NAMESPACE }}
+          kubectl get secrets -n ${{ env.NAMESPACE }}
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-logs
+          path: |
+            logs/
+            manifests/
+          retention-days: 7
+
+      - name: Notify deployment status
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: |
+            Deployment to staging ${{ job.status }}
+            Environment: staging
+            Triggered by: ${{ github.actor }}
+            Commit: ${{ github.sha }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
