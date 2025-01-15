@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  business-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      DATA_API_URL: http://data-api:5001
+      REDIS_CONNECTION: redis:6379
+      AWS__Region: us-east-1
+      AWS__Profile: development
+      GraphQL__EnablePlayground: 'true'
+      GraphQL__EnableMetrics: 'true'
+      GraphQL__EnableSchemaRequests: 'true'
+      Monitoring__CloudWatch__Enabled: 'true'
+      Monitoring__XRay__Enabled: 'true'
+      Monitoring__OpenTelemetry__Enabled: 'true'
+    ports:
+      - "5000:5000"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
+      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  data-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5001
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=estatekit;Username=app;Password=devpassword;
+      DatabaseOptions__CommandTimeout: '30'
+      DatabaseOptions__MaxPoolSize: '100'
+      DatabaseOptions__RetryCount: '3'
+      EncryptionOptions__Region: us-east-1
+      EncryptionOptions__KmsKeyId: dev/estatekit/encryption
+      SecurityOptions__Region: us-east-1
+      Logging__LogLevel__Default: Debug
+    ports:
+      - "5001:5001"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
+      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass devpassword
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15.0-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: estatekit
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
