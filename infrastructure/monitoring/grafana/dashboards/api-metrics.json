@@ -1,0 +1,270 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "cloudwatch"
+        },
+        "enable": true,
+        "name": "Deployments",
+        "namespace": "AWS/ECS",
+        "metricName": "deployment_event",
+        "dimensions": {},
+        "tags": []
+      },
+      {
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "cloudwatch"
+        },
+        "enable": true,
+        "name": "Security Events",
+        "namespace": "AWS/SecurityHub",
+        "metricName": "security_event",
+        "dimensions": {},
+        "tags": []
+      },
+      {
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "cloudwatch"
+        },
+        "enable": true,
+        "name": "Infrastructure Changes",
+        "namespace": "AWS/EKS",
+        "metricName": "cluster_event",
+        "dimensions": {},
+        "tags": []
+      }
+    ]
+  },
+  "uid": "api-metrics-dashboard",
+  "title": "EstateKit API Metrics Dashboard",
+  "description": "Comprehensive monitoring dashboard for EstateKit Business and Data APIs",
+  "tags": ["api", "monitoring", "estatekit"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 36,
+  "version": 1,
+  "panels": [
+    {
+      "title": "API Response Times",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=~\"business-api|data-api\"}[1m])) by (le, service))",
+          "legendFormat": "p95 {{service}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=~\"business-api|data-api\"}[1m])) by (le, service))",
+          "legendFormat": "p99 {{service}}",
+          "refId": "B"
+        },
+        {
+          "expr": "avg(rate(http_request_duration_seconds_sum{service=~\"business-api|data-api\"}[1m])) by (service) / avg(rate(http_request_duration_seconds_count{service=~\"business-api|data-api\"}[1m])) by (service)",
+          "legendFormat": "avg {{service}}",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [
+        {
+          "value": 3,
+          "op": "gt",
+          "colorMode": "critical",
+          "fill": true
+        }
+      ]
+    },
+    {
+      "title": "Request Rate and Throughput",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{service=~\"business-api|data-api\"}[5m])) by (service)",
+          "legendFormat": "requests/sec {{service}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(http_requests_total{service=~\"business-api|data-api\"}[5m])) by (service)",
+          "legendFormat": "total requests {{service}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Error Rate Analysis",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{service=~\"business-api|data-api\",status=~\"[45]..\"}[5m])) by (service, status) / sum(rate(http_requests_total{service=~\"business-api|data-api\"}[5m])) by (service)",
+          "legendFormat": "error rate {{service}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [
+        {
+          "value": 0.001,
+          "op": "gt",
+          "colorMode": "critical",
+          "fill": true
+        }
+      ]
+    },
+    {
+      "title": "Security and Encryption",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "min(encryption_coverage_percent{service=\"data-api\"})",
+          "legendFormat": "encryption coverage",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(security_violations_total{service=~\"business-api|data-api\"}[24h])) by (service)",
+          "legendFormat": "security violations {{service}}",
+          "refId": "B"
+        }
+      ],
+      "thresholds": {
+        "steps": [
+          { "value": null, "color": "green" },
+          { "value": 99.9, "color": "yellow" },
+          { "value": 99, "color": "red" }
+        ]
+      }
+    }
+  ],
+  "alerting": {
+    "rules": [
+      {
+        "name": "Critical Response Time",
+        "condition": "http_request_duration_seconds{quantile=\"0.95\"} > 3",
+        "for": "5m",
+        "labels": {
+          "severity": "critical"
+        },
+        "annotations": {
+          "description": "API response time exceeded 3 seconds threshold",
+          "summary": "Critical response time detected"
+        },
+        "notifications": [
+          {
+            "uid": "pagerduty-notifier",
+            "type": "pagerduty"
+          },
+          {
+            "uid": "slack-notifier",
+            "type": "slack"
+          }
+        ]
+      },
+      {
+        "name": "High Error Rate",
+        "condition": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) > 0.001",
+        "for": "5m",
+        "labels": {
+          "severity": "critical"
+        },
+        "annotations": {
+          "description": "API error rate exceeded 0.1% threshold",
+          "summary": "High error rate detected"
+        },
+        "notifications": [
+          {
+            "uid": "pagerduty-notifier",
+            "type": "pagerduty"
+          },
+          {
+            "uid": "slack-notifier",
+            "type": "slack"
+          }
+        ]
+      },
+      {
+        "name": "Encryption Coverage Drop",
+        "condition": "min(encryption_coverage_percent) < 100",
+        "for": "1m",
+        "labels": {
+          "severity": "critical"
+        },
+        "annotations": {
+          "description": "Encryption coverage dropped below 100%",
+          "summary": "Incomplete encryption coverage detected"
+        },
+        "notifications": [
+          {
+            "uid": "pagerduty-notifier",
+            "type": "pagerduty"
+          },
+          {
+            "uid": "slack-notifier",
+            "type": "slack"
+          },
+          {
+            "uid": "email-notifier",
+            "type": "email"
+          }
+        ]
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(http_requests_total, service)",
+        "regex": "business-api|data-api",
+        "refresh": 2
+      }
+    ]
+  }
+}
