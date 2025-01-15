@@ -1,0 +1,236 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Enhanced Business Logic API infrastructure for EstateKit Personal Information API system with advanced security and monitoring
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Environment name (staging/production)
+    AllowedValues:
+      - staging
+      - production
+  
+  ApiDomainName:
+    Type: String
+    Description: Domain name for the Business API
+  
+  CertificateArn:
+    Type: String
+    Description: ARN of ACM certificate for HTTPS
+  
+  LogRetentionDays:
+    Type: Number
+    Description: Number of days to retain logs
+    Default: 90
+  
+  WafRateLimit:
+    Type: Number
+    Description: WAF rate limit per IP
+    Default: 1000
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'production']
+
+Resources:
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-business-api-alb
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups: 
+        - !ImportValue SecurityStack-ApiSecurityGroupId
+      Subnets: !Split [',', !ImportValue VpcStack-PublicSubnets]
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: !If [IsProduction, 'true', 'false']
+        - Key: access_logs.s3.enabled
+          Value: 'true'
+        - Key: routing.http2.enabled
+          Value: 'true'
+        - Key: load_balancing.cross_zone.enabled
+          Value: 'true'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-business-api
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: business-api
+
+  # ALB Listener
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApiTargetGroup
+      SslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
+
+  # Target Group
+  ApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-business-api-tg
+      Port: 80
+      Protocol: HTTP
+      VpcId: !ImportValue VpcStack-VpcId
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-business-api-tg
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # WAF Web ACL
+  WafWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub ${EnvironmentName}-business-api-waf
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      Rules:
+        - Name: RateLimit
+          Priority: 1
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref WafRateLimit
+              AggregateKeyType: IP
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitRule
+        - Name: SQLInjectionProtection
+          Priority: 2
+          Statement:
+            SqliMatchStatement:
+              FieldToMatch:
+                Body: {}
+              TextTransformations:
+                - Priority: 1
+                  Type: NONE
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: SQLInjectionRule
+        - Name: XSSProtection
+          Priority: 3
+          Statement:
+            XssMatchStatement:
+              FieldToMatch:
+                Body: {}
+              TextTransformations:
+                - Priority: 1
+                  Type: NONE
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: XSSRule
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: BusinessApiWaf
+
+  # WAF Association
+  WafAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Ref ApplicationLoadBalancer
+      WebACLArn: !GetAtt WafWebAcl.Arn
+
+  # CloudWatch Log Group
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/business-api/${EnvironmentName}
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Auto Scaling Group
+  ApiAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Split [',', !ImportValue VpcStack-BusinessSubnets]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ApiLaunchTemplate
+        Version: !GetAtt ApiLaunchTemplate.LatestVersionNumber
+      MinSize: !If [IsProduction, 3, 2]
+      MaxSize: !If [IsProduction, 10, 5]
+      DesiredCapacity: !If [IsProduction, 3, 2]
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      TargetGroupARNs:
+        - !Ref ApiTargetGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-business-api
+          PropagateAtLaunch: true
+        - Key: Environment
+          Value: !Ref EnvironmentName
+          PropagateAtLaunch: true
+
+  # Launch Template
+  ApiLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}-business-api-lt
+      LaunchTemplateData:
+        ImageId: !ImportValue EksStack-NodeImageId
+        InstanceType: t3.large
+        SecurityGroupIds:
+          - !ImportValue SecurityStack-ApiSecurityGroupId
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            /etc/eks/bootstrap.sh ${EksStack-ClusterName} \
+              --container-runtime containerd \
+              --kubelet-extra-args '--node-labels=role=business-api'
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 100
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+        Monitoring:
+          Enabled: true
+
+Outputs:
+  ApiEndpoint:
+    Description: Business API endpoint URL
+    Value: !Sub https://${ApiDomainName}
+    Export:
+      Name: !Sub ${EnvironmentName}-BusinessApiEndpoint
+
+  LoadBalancerDnsName:
+    Description: Load balancer DNS name
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub ${EnvironmentName}-BusinessApiLoadBalancer
+
+  WafAclId:
+    Description: WAF Web ACL ID
+    Value: !GetAtt WafWebAcl.Id
+    Export:
+      Name: !Sub ${EnvironmentName}-BusinessApiWafAclId
