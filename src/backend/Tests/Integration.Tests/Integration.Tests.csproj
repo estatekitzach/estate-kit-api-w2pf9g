@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Import common build properties -->
+  <Import Project="../../../Directory.Build.props" />
+  <Import Project="../../../Directory.Packages.props" />
+
+  <!-- Integration Tests project properties -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>EstateKit.Integration.Tests</RootNamespace>
+    <AssemblyName>EstateKit.Integration.Tests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <!-- Code coverage settings -->
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+    <VSTestLogger>trx</VSTestLogger>
+    <VSTestResultsDirectory>$(MSBuildProjectDirectory)/TestResults</VSTestResultsDirectory>
+
+    <!-- Enhanced security settings -->
+    <AnalysisMode>All</AnalysisMode>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="../../Core/Core.csproj" />
+    <ProjectReference Include="../../Business.API/Business.API.csproj" />
+    <ProjectReference Include="../../Data.API/Data.API.csproj" />
+  </ItemGroup>
+
+  <!-- Package references -->
+  <ItemGroup>
+    <!-- Test framework packages -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <!-- API testing packages -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
+    
+    <!-- Container testing packages -->
+    <PackageReference Include="Testcontainers" Version="3.6.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="3.6.0" />
+    
+    <!-- Test utility packages -->
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    <PackageReference Include="Moq" Version="4.20.70" />
+    <PackageReference Include="Bogus" Version="35.0.1" />
+  </ItemGroup>
+
+  <!-- Test configuration files -->
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Testing.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
