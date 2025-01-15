@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Import common build properties -->
+  <Import Project="../Directory.Build.props" />
+  <Import Project="../Directory.Packages.props" />
+
+  <!-- Data API project properties -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>EstateKit.Data.API</RootNamespace>
+    <AssemblyName>EstateKit.Data.API</AssemblyName>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <UserSecretsId>estatekit-data-api</UserSecretsId>
+    <EnableDefaultGlobalUsings>true</EnableDefaultGlobalUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- Documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>1591</NoWarn>
+    
+    <!-- Enhanced security and analysis -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    
+    <!-- Assembly signing -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="../Core/Core.csproj" />
+    <ProjectReference Include="../Infrastructure/Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- Package references -->
+  <ItemGroup>
+    <!-- ASP.NET Core packages -->
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.0" />
+    
+    <!-- API Documentation -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    
+    <!-- Monitoring and Telemetry -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="7.1.0" />
+    
+    <!-- API Features -->
+    <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
+  </ItemGroup>
+
+  <!-- Docker support -->
+  <ItemGroup>
+    <Content Include="Dockerfile">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
