@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Import common build properties -->
+  <Import Project="../../Directory.Build.props" />
+  <Import Project="../../Directory.Packages.props" />
+
+  <!-- Test project properties -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>EstateKit.Business.API.Tests</RootNamespace>
+    <AssemblyName>EstateKit.Business.API.Tests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    
+    <!-- Test execution settings -->
+    <ParallelizeTestCollections>true</ParallelizeTestCollections>
+    <MaxParallelThreads>4</MaxParallelThreads>
+    
+    <!-- Code coverage settings -->
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+    <MinimumCoveragePercentage>80</MinimumCoveragePercentage>
+  </PropertyGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="../../Business.API/Business.API.csproj" />
+    <ProjectReference Include="../../Core/Core.csproj" />
+  </ItemGroup>
+
+  <!-- Package references -->
+  <ItemGroup>
+    <!-- Testing frameworks -->
+    <PackageReference Include="xunit" Version="2.5.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    
+    <!-- Testing utilities -->
+    <PackageReference Include="Moq" Version="4.18.0" />
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    
+    <!-- GraphQL testing -->
+    <PackageReference Include="HotChocolate.Types.Testing" Version="13.0.0" />
+    
+    <!-- AWS SDK for mocking -->
+    <PackageReference Include="AWSSDK.S3" Version="3.7.0" />
+    <PackageReference Include="AWSSDK.Textract" Version="3.7.0" />
+  </ItemGroup>
+
+  <!-- Test settings -->
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
