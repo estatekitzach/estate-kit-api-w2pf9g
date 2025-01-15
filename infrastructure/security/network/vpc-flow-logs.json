@@ -1,0 +1,98 @@
+{
+  "Description": "Enhanced VPC Flow Logs configuration for comprehensive network traffic monitoring and security analysis with encryption and extended retention",
+  "flowLogs": {
+    "vpcFlowLog": {
+      "trafficType": "ALL",
+      "logDestinationType": "cloud-watch-logs",
+      "logFormat": {
+        "version": 2,
+        "fields": [
+          "version",
+          "account-id",
+          "interface-id",
+          "srcaddr",
+          "dstaddr",
+          "srcport",
+          "dstport",
+          "protocol",
+          "packets",
+          "bytes",
+          "start",
+          "end",
+          "action",
+          "log-status",
+          "vpc-id",
+          "subnet-id",
+          "instance-id",
+          "tcp-flags",
+          "type",
+          "pkt-srcaddr",
+          "pkt-dstaddr",
+          "region",
+          "az-id",
+          "sublocation-type",
+          "sublocation-id",
+          "pkt-src-aws-service",
+          "pkt-dst-aws-service",
+          "flow-direction",
+          "traffic-path"
+        ]
+      },
+      "maxAggregationInterval": 600,
+      "retentionInDays": 365
+    },
+    "logGroup": {
+      "name": "/aws/vpc/flow-logs",
+      "retentionInDays": 365,
+      "kmsEncryption": true,
+      "kmsKeyId": "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${KMSKeyId}"
+    },
+    "iamRole": {
+      "name": "VPCFlowLogsRole",
+      "assumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "vpc-flow-logs.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "policies": [
+        {
+          "name": "VPCFlowLogsPolicy",
+          "policyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents",
+                  "logs:DescribeLogGroups",
+                  "logs:DescribeLogStreams"
+                ],
+                "Resource": "arn:aws:logs:*:*:log-group:/aws/vpc/flow-logs:*"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "kms:Encrypt",
+                  "kms:Decrypt", 
+                  "kms:ReEncrypt*",
+                  "kms:GenerateDataKey*",
+                  "kms:DescribeKey"
+                ],
+                "Resource": "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${KMSKeyId}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
