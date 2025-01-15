@@ -1,0 +1,90 @@
+# Prometheus Configuration v2.45.0
+# Monitoring configuration for EstateKit Personal Information API System
+# Integrates with Alertmanager v0.25.0 for alert management
+
+global:
+  scrape_interval: 30s     # Default interval for scraping targets
+  evaluation_interval: 30s # Default interval for evaluating rules
+  scrape_timeout: 10s     # Timeout for scrape requests
+  external_labels:
+    environment: production
+    region: us-east-1
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+      scheme: http
+      timeout: 10s
+      api_version: v2
+
+# Load alert rules from separate file
+rule_files:
+  - alert-rules.yml
+
+# Scrape configurations for monitoring targets
+scrape_configs:
+  # Business API monitoring
+  - job_name: business-api
+    metrics_path: /metrics
+    scheme: https
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - estatekit-prod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: business-api
+        action: keep
+    tls_config:
+      insecure_skip_verify: false
+
+  # Data API monitoring
+  - job_name: data-api
+    metrics_path: /metrics
+    scheme: https
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - estatekit-prod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: data-api
+        action: keep
+    tls_config:
+      insecure_skip_verify: false
+
+  # Redis monitoring
+  - job_name: redis
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+        - redis-exporter:9121
+
+  # PostgreSQL monitoring
+  - job_name: postgresql
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+        - postgres-exporter:9187
+
+# Storage configuration for time series data
+storage:
+  tsdb:
+    retention_time: 15d      # Keep data for 15 days
+    retention_size: 50GB     # Maximum storage size
+    min_block_duration: 2h   # Minimum block time
+    max_block_duration: 24h  # Maximum block time
+
+# Remote write configuration for long-term storage with Thanos
+remote_write:
+  - url: http://thanos-receive:19291/api/v1/receive
+    remote_timeout: 30s
+    queue_config:
+      capacity: 10000
+      max_shards: 200
+      max_samples_per_send: 500
