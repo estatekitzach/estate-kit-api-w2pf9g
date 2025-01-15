@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Import common build properties -->
+  <Import Project="../Directory.Build.props" />
+  <Import Project="../Directory.Packages.props" />
+
+  <!-- Business API project properties -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>EstateKit.Business.API</RootNamespace>
+    <AssemblyName>EstateKit.Business.API</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>..</DockerfileContext>
+    
+    <!-- Enhanced security settings -->
+    <AnalysisMode>All</AnalysisMode>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    
+    <!-- Assembly signing -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="../Core/Core.csproj" />
+    <ProjectReference Include="../Infrastructure/Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- Package references -->
+  <ItemGroup>
+    <!-- ASP.NET Core framework -->
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="9.0.0" />
+    
+    <!-- GraphQL server packages -->
+    <PackageReference Include="HotChocolate.AspNetCore" Version="13.0.0" />
+    <PackageReference Include="HotChocolate.Data" Version="13.0.0" />
+    <PackageReference Include="HotChocolate.Types" Version="13.0.0" />
+    <PackageReference Include="HotChocolate.Subscriptions" Version="13.0.0" />
+    
+    <!-- Authentication -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    
+    <!-- AWS SDK packages -->
+    <PackageReference Include="AWSSDK.S3" Version="3.7.0" />
+    <PackageReference Include="AWSSDK.Textract" Version="3.7.0" />
+    
+    <!-- Monitoring and telemetry -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
+  </ItemGroup>
+
+  <!-- Docker support -->
+  <ItemGroup>
+    <Content Include="Dockerfile">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
