@@ -1,0 +1,135 @@
+{
+  "Version": "2023-01-01",
+  "description": "Rate limiting configuration for EstateKit APIs",
+  "defaultRateLimit": {
+    "requestsPerMinute": 1000,
+    "burstLimit": 2000,
+    "aggregateKeyType": "IP",
+    "action": {
+      "block": {
+        "customResponse": {
+          "responseCode": 429,
+          "customResponseBodyKey": "rateLimitExceeded",
+          "responseHeaders": [
+            {
+              "name": "Retry-After",
+              "value": "60"
+            },
+            {
+              "name": "X-RateLimit-Limit",
+              "value": "1000"
+            }
+          ]
+        }
+      }
+    },
+    "fallbackBehavior": "MATCH",
+    "priority": 1
+  },
+  "endpointLimits": [
+    {
+      "name": "DocumentUpload",
+      "pathPattern": "/v1/users/*/documents",
+      "method": "POST",
+      "requestsPerMinute": 100,
+      "burstLimit": 200,
+      "priority": 10,
+      "customHeaders": [
+        {
+          "name": "X-RateLimit-Limit",
+          "value": "100"
+        }
+      ]
+    },
+    {
+      "name": "UserIdentifiers",
+      "pathPattern": "/v1/users/*/identifiers",
+      "method": "PUT",
+      "requestsPerMinute": 500,
+      "burstLimit": 1000,
+      "priority": 20,
+      "customHeaders": [
+        {
+          "name": "X-RateLimit-Limit",
+          "value": "500"
+        }
+      ]
+    },
+    {
+      "name": "UserQueries",
+      "pathPattern": "/v1/users/*",
+      "method": "GET",
+      "requestsPerMinute": 1000,
+      "burstLimit": 2000,
+      "priority": 30,
+      "customHeaders": [
+        {
+          "name": "X-RateLimit-Limit",
+          "value": "1000"
+        }
+      ]
+    },
+    {
+      "name": "RelationshipQueries",
+      "pathPattern": "/v1/users/*/relationships",
+      "method": "GET",
+      "requestsPerMinute": 1000,
+      "burstLimit": 2000,
+      "priority": 40,
+      "customHeaders": [
+        {
+          "name": "X-RateLimit-Limit",
+          "value": "1000"
+        }
+      ]
+    }
+  ],
+  "monitoring": {
+    "enabled": true,
+    "metricNamespace": "EstateKit/WAF/RateLimits",
+    "dimensions": [
+      "Rule",
+      "Endpoint",
+      "IPAddress"
+    ],
+    "alarms": {
+      "thresholdPercentage": 80,
+      "evaluationPeriods": 5,
+      "period": 60,
+      "actions": {
+        "warning": {
+          "threshold": 70,
+          "snsTopicArn": "${SecurityAlarmsTopic}"
+        },
+        "critical": {
+          "threshold": 90,
+          "snsTopicArn": "${SecurityAlarmsTopic}"
+        }
+      }
+    },
+    "logging": {
+      "enabled": true,
+      "destination": "cloudwatch",
+      "retentionDays": 90,
+      "samplingRate": 100
+    }
+  },
+  "ipSetExclusions": {
+    "enabled": true,
+    "trustedProxies": [],
+    "internalServices": [],
+    "managementConfig": {
+      "updateMethod": "api",
+      "maxExclusions": 1000,
+      "expirationDays": 30,
+      "requiresApproval": true,
+      "approvalWorkflow": {
+        "enabled": true,
+        "approvers": [
+          "security-team"
+        ],
+        "minimumApprovals": 2
+      }
+    }
+  }
+}
