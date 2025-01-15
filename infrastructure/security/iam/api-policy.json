@@ -1,0 +1,153 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "S3DocumentOperations",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject", 
+                "s3:DeleteObject",
+                "s3:ListBucket",
+                "s3:GetObjectTagging",
+                "s3:PutObjectTagging"
+            ],
+            "Resource": [
+                "arn:aws:s3:::${DocumentBucketName}",
+                "arn:aws:s3:::${DocumentBucketName}/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "s3:x-amz-server-side-encryption": "aws:kms",
+                    "s3:x-amz-server-side-encryption-aws-kms-key-id": "${DocumentKMSKeyArn}",
+                    "aws:RequestedRegion": "${AWS::Region}"
+                },
+                "Bool": {
+                    "aws:SecureTransport": "true"
+                }
+            }
+        },
+        {
+            "Sid": "TextractOperations",
+            "Effect": "Allow",
+            "Action": [
+                "textract:StartDocumentAnalysis",
+                "textract:GetDocumentAnalysis",
+                "textract:StartDocumentTextDetection",
+                "textract:GetDocumentTextDetection"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": "${AWS::Region}"
+                },
+                "Bool": {
+                    "aws:SecureTransport": "true",
+                    "aws:ViaAWSService": "true"
+                }
+            }
+        },
+        {
+            "Sid": "CognitoAuthentication",
+            "Effect": "Allow",
+            "Action": [
+                "cognito-idp:AdminInitiateAuth",
+                "cognito-idp:AdminRespondToAuthChallenge",
+                "cognito-idp:AdminGetUser",
+                "cognito-idp:AdminUpdateUserAttributes"
+            ],
+            "Resource": "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}",
+            "Condition": {
+                "Bool": {
+                    "aws:SecureTransport": "true"
+                }
+            }
+        },
+        {
+            "Sid": "KMSOperations",
+            "Effect": "Allow",
+            "Action": [
+                "kms:Encrypt",
+                "kms:Decrypt",
+                "kms:GenerateDataKey",
+                "kms:DescribeKey"
+            ],
+            "Resource": [
+                "${FieldEncryptionKMSKeyArn}",
+                "${DocumentKMSKeyArn}"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": "${AWS::Region}",
+                    "kms:ViaService": [
+                        "s3.${AWS::Region}.amazonaws.com",
+                        "secretsmanager.${AWS::Region}.amazonaws.com"
+                    ]
+                },
+                "Bool": {
+                    "aws:SecureTransport": "true"
+                }
+            }
+        },
+        {
+            "Sid": "MonitoringOperations",
+            "Effect": "Allow",
+            "Action": [
+                "cloudwatch:PutMetricData",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords"
+            ],
+            "Resource": [
+                "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/estatekit-api/*:*",
+                "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:*",
+                "arn:aws:xray:${AWS::Region}:${AWS::AccountId}:*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": "${AWS::Region}"
+                },
+                "Bool": {
+                    "aws:SecureTransport": "true"
+                }
+            }
+        },
+        {
+            "Sid": "SecretsAccess",
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret"
+            ],
+            "Resource": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:estatekit-api/*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": "${AWS::Region}",
+                    "aws:ResourceTag/Environment": "${Environment}",
+                    "aws:ResourceTag/Service": "estatekit-api"
+                },
+                "Bool": {
+                    "aws:SecureTransport": "true"
+                }
+            }
+        },
+        {
+            "Sid": "VPCEndpointAccess",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeVpcEndpoints",
+                "ec2:DescribeVpcEndpointServices"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": "${AWS::Region}"
+                },
+                "Bool": {
+                    "aws:SecureTransport": "true"
+                }
+            }
+        }
+    ]
+}
