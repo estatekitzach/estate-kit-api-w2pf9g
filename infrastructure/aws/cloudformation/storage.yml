@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Storage infrastructure for EstateKit Personal Information API system with enhanced security and compliance features
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Environment name (e.g., Production, Staging, Development)
+    AllowedValues:
+      - Production
+      - Staging
+      - Development
+
+  RetentionPeriodDays:
+    Type: Number
+    Description: Document retention period in days (7 years)
+    Default: 2555
+    MinValue: 2555
+
+  GlacierTransitionDays:
+    Type: Number
+    Description: Days after which objects transition to Glacier
+    Default: 365
+    MinValue: 30
+
+  IntelligentTieringDays:
+    Type: Number
+    Description: Days after which objects are evaluated for intelligent tiering
+    Default: 90
+    MinValue: 30
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, Production]
+
+Resources:
+  DocumentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub estatekit-documents-${EnvironmentName}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !ImportValue EncryptionKeyArn
+            BucketKeyEnabled: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: IntelligentTiering
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: !Ref IntelligentTieringDays
+          - Id: GlacierArchive
+            Status: Enabled
+            Transitions:
+              - StorageClass: GLACIER
+                TransitionInDays: !Ref GlacierTransitionDays
+            ExpirationInDays: !Ref RetentionPeriodDays
+            NoncurrentVersionExpiration:
+              NoncurrentDays: !Ref RetentionPeriodDays
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: COMPLIANCE
+            Days: !Ref RetentionPeriodDays
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: DataClassification
+          Value: Sensitive
+        - Key: ComplianceScope
+          Value: GDPR-PII
+
+  DocumentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnforceSSLOnly
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub ${DocumentBucket.Arn}
+              - !Sub ${DocumentBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowAPIServiceAccess
+            Effect: Allow
+            Principal:
+              AWS: !ImportValue ApiServiceRoleArn
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !Sub ${DocumentBucket.Arn}
+              - !Sub ${DocumentBucket.Arn}/*
+
+Outputs:
+  DocumentBucketName:
+    Description: S3 bucket name for document storage
+    Value: !Ref DocumentBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentBucketName
+
+  DocumentBucketArn:
+    Description: S3 bucket ARN for document storage
+    Value: !GetAtt DocumentBucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-DocumentBucketArn
