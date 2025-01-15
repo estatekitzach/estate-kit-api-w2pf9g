@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Import common build properties -->
+  <Import Project="../Directory.Build.props" />
+  <Import Project="../Directory.Packages.props" />
+
+  <!-- Infrastructure project properties -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>EstateKit.Infrastructure</RootNamespace>
+    <AssemblyName>EstateKit.Infrastructure</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- Enhanced security settings -->
+    <AnalysisMode>All</AnalysisMode>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    
+    <!-- Assembly signing -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="../Core/Core.csproj" />
+  </ItemGroup>
+
+  <!-- Package references -->
+  <ItemGroup>
+    <!-- Entity Framework Core and PostgreSQL provider -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="$(EntityFrameworkVersion)" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(EntityFrameworkVersion)" />
+    
+    <!-- AWS SDK packages -->
+    <PackageReference Include="AWSSDK.Core" Version="$(AWSSDKVersion)" />
+    <PackageReference Include="AWSSDK.S3" Version="$(AWSSDKVersion)" />
+    <PackageReference Include="AWSSDK.Textract" Version="$(AWSSDKVersion)" />
+    
+    <!-- Security and encryption -->
+    <PackageReference Include="BouncyCastle.NetCore" Version="$(BouncyCastleVersion)" />
+    
+    <!-- Caching -->
+    <PackageReference Include="StackExchange.Redis" Version="$(RedisVersion)" />
+    
+    <!-- Logging -->
+    <PackageReference Include="Serilog" Version="$(SerilogVersion)" />
+    
+    <!-- Data protection -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" Version="$(AspNetCoreDataProtectionVersion)" />
+    
+    <!-- Health checks -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(EntityFrameworkVersion)" />
+    
+    <!-- Distributed caching -->
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="$(AspNetCoreVersion)" />
+  </ItemGroup>
+
+</Project>
