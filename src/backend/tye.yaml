@@ -1,0 +1,147 @@
+# Project Tye configuration for EstateKit Personal Information API system
+# Version: 0.11.0
+
+name: estatekit-api
+registry: estatekit
+
+services:
+  # Business Logic API Service
+  - name: business-api
+    project: Business.API/Business.API.csproj
+    bindings:
+      - port: 5001
+        protocol: https
+    env:
+      - name: ASPNETCORE_ENVIRONMENT
+        value: Development
+      - name: CORS_ORIGINS
+        value: http://localhost:3000
+      - name: OTEL_SERVICE_NAME
+        value: business-api
+    resources:
+      cpu: "1.0"
+      memory: "2Gi"
+    probes:
+      liveness:
+        path: /health/live
+        port: 5001
+      readiness:
+        path: /health/ready
+        port: 5001
+
+  # Data Access API Service
+  - name: data-api
+    project: Data.API/Data.API.csproj
+    bindings:
+      - port: 5002
+        protocol: https
+    env:
+      - name: ASPNETCORE_ENVIRONMENT
+        value: Development
+      - name: OTEL_SERVICE_NAME
+        value: data-api
+    resources:
+      cpu: "1.0"
+      memory: "2Gi"
+    probes:
+      liveness:
+        path: /health/live
+        port: 5002
+      readiness:
+        path: /health/ready
+        port: 5002
+
+  # Redis Cache Service
+  - name: redis
+    image: redis:7.0
+    bindings:
+      - port: 6379
+        containerPort: 6379
+    volumes:
+      - source: ./data/redis
+        target: /data
+    args:
+      - "--maxmemory 2gb"
+      - "--maxmemory-policy allkeys-lru"
+    resources:
+      cpu: "0.5"
+      memory: "2Gi"
+    probes:
+      liveness:
+        exec:
+          command: ["redis-cli", "ping"]
+
+  # PostgreSQL Database Service
+  - name: postgres
+    image: postgres:15.0
+    bindings:
+      - port: 5432
+        containerPort: 5432
+    env:
+      - name: POSTGRES_DB
+        value: estatekit
+      - name: POSTGRES_USER
+        value: estatekit_dev
+      - name: POSTGRES_PASSWORD
+        value: development_only_password
+      - name: POSTGRES_MAX_CONNECTIONS
+        value: "100"
+      - name: POSTGRES_SHARED_BUFFERS
+        value: "1GB"
+    volumes:
+      - source: ./data/postgres
+        target: /var/lib/postgresql/data
+    resources:
+      cpu: "1.0"
+      memory: "4Gi"
+    probes:
+      liveness:
+        exec:
+          command: ["pg_isready", "-U", "estatekit_dev"]
+
+# Ingress Configuration
+ingress:
+  - name: estatekit-ingress
+    bindings:
+      - port: 8080
+        protocol: http
+    rules:
+      - path: /graphql
+        service: business-api
+        preservePath: true
+        cors:
+          allowedOrigins:
+            - http://localhost:3000
+          allowedMethods:
+            - GET
+            - POST
+            - OPTIONS
+          allowedHeaders:
+            - Content-Type
+            - Authorization
+      - path: /api
+        service: data-api
+        preservePath: true
+        cors:
+          allowedOrigins:
+            - http://localhost:3000
+          allowedMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          allowedHeaders:
+            - Content-Type
+            - Authorization
+
+# Distributed Tracing Configuration
+extensions:
+  - name: distributed-tracing
+    logLevel: Information
+    sampling:
+      probability: 1.0
+    exporters:
+      jaeger:
+        agentHost: localhost
+        agentPort: 6831
