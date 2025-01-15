@@ -1,0 +1,29 @@
+# Global ownership - Lead Architects have oversight of all repository content
+*                                           @estatekit/lead-architects
+
+# GraphQL API implementation ownership
+src/backend/Business.API/GraphQL/**         @estatekit/graphql-team @estatekit/lead-architects
+
+# Data API implementation ownership
+src/backend/Data.API/**                     @estatekit/data-team @estatekit/lead-architects
+
+# Security implementation ownership
+src/backend/Infrastructure/Security/**      @estatekit/security-team @estatekit/lead-architects
+
+# Database implementation ownership
+src/backend/Infrastructure/Data/**          @estatekit/database-team @estatekit/lead-architects
+
+# AWS infrastructure configuration ownership
+infrastructure/aws/**                       @estatekit/devops-team @estatekit/lead-architects
+
+# Security configuration ownership
+infrastructure/security/**                  @estatekit/security-team @estatekit/lead-architects
+
+# Monitoring configuration ownership
+infrastructure/monitoring/**                @estatekit/devops-team @estatekit/sre-team @estatekit/lead-architects
+
+# CI/CD workflow configuration ownership
+.github/workflows/**                        @estatekit/devops-team @estatekit/lead-architects
+
+# Test implementation ownership
+src/backend/Tests/**                        @estatekit/qa-team @estatekit/lead-architects
