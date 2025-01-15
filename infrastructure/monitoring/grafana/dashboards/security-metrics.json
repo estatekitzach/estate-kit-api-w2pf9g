@@ -1,0 +1,365 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "cloudwatch"
+        },
+        "enable": true,
+        "name": "Security Updates",
+        "namespace": "AWS/SecurityHub",
+        "metricName": "finding_recorded",
+        "dimensions": {
+          "Severity": "*",
+          "Type": "*"
+        },
+        "tags": ["security"]
+      },
+      {
+        "datasource": {
+          "type": "cloudwatch",
+          "uid": "cloudwatch"
+        },
+        "enable": true,
+        "name": "Key Rotations",
+        "namespace": "AWS/KMS",
+        "metricName": "key_rotation",
+        "dimensions": {
+          "KeyId": "*"
+        },
+        "tags": ["security", "encryption"]
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "enable": true,
+        "name": "Security Scans",
+        "expr": "security_scan_completion",
+        "labelMatchers": [
+          {"name": "scan_type", "value": "*"},
+          {"name": "result", "value": "*"}
+        ],
+        "tags": ["security", "scanning"]
+      }
+    ]
+  },
+  "description": "Security metrics dashboard for EstateKit Personal Information API system",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 99.9
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "9.5.0",
+      "title": "Encryption Coverage",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "min(sensitive_field_encryption_coverage{service=~\"data-api|business-api\"})",
+          "interval": "5m",
+          "legendFormat": "Coverage"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "title": "Authentication Security",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "rate(failed_auth_attempts{service=~\"business-api|data-api\"}[5m])",
+          "legendFormat": "{{service}} - Failed Auth",
+          "interval": "1m"
+        },
+        {
+          "expr": "rate(token_validation_failures{service=~\"business-api|data-api\"}[5m])",
+          "legendFormat": "{{service}} - Token Failures",
+          "interval": "1m"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Operations/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "title": "Data Protection",
+      "type": "graph",
+      "targets": [
+        {
+          "expr": "rate(encryption_operations_total{service=\"data-api\"}[5m])",
+          "legendFormat": "Encryption Operations",
+          "interval": "1m"
+        },
+        {
+          "expr": "rate(encryption_failures_total{service=\"data-api\"}[5m])",
+          "legendFormat": "Encryption Failures",
+          "interval": "1m"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "9.5.0",
+      "title": "Security Incidents",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "security_vulnerabilities{service=~\"business-api|data-api\"}",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "severity": "Severity",
+              "source": "Source",
+              "description": "Description"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["security", "monitoring"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Security Metrics Dashboard",
+  "uid": "security-metrics-dashboard",
+  "version": 1,
+  "weekStart": ""
+}
