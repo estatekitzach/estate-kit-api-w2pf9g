@@ -1,0 +1,149 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CriticalDataKeyRotation",
+            "Effect": "Allow",
+            "Action": [
+                "kms:CreateKey",
+                "kms:EnableKeyRotation",
+                "kms:ScheduleKeyDeletion",
+                "kms:GetKeyRotationStatus",
+                "kms:EnableKey",
+                "kms:DisableKey",
+                "kms:UpdateKeyDescription",
+                "kms:ListKeys",
+                "kms:ListAliases",
+                "kms:CreateAlias",
+                "kms:DeleteAlias",
+                "kms:UpdateAlias",
+                "kms:GenerateDataKey",
+                "kms:Decrypt",
+                "kms:Encrypt"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:*:key/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "kms:KeySpec": "SYMMETRIC_DEFAULT",
+                    "kms:KeyUsage": "ENCRYPT_DECRYPT"
+                },
+                "NumericLessThanEquals": {
+                    "kms:RotationPeriod": 7776000
+                }
+            }
+        },
+        {
+            "Sid": "SensitiveDataKeyRotation",
+            "Effect": "Allow",
+            "Action": [
+                "kms:CreateKey",
+                "kms:EnableKeyRotation",
+                "kms:GetKeyRotationStatus",
+                "kms:EnableKey",
+                "kms:DisableKey",
+                "kms:GenerateDataKey",
+                "kms:Decrypt",
+                "kms:Encrypt"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:*:key/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "kms:KeySpec": "SYMMETRIC_DEFAULT",
+                    "kms:KeyUsage": "ENCRYPT_DECRYPT"
+                },
+                "NumericLessThanEquals": {
+                    "kms:RotationPeriod": 15552000
+                }
+            }
+        },
+        {
+            "Sid": "InternalDataKeyRotation",
+            "Effect": "Allow",
+            "Action": [
+                "kms:CreateKey",
+                "kms:EnableKeyRotation",
+                "kms:GetKeyRotationStatus",
+                "kms:EnableKey",
+                "kms:DisableKey",
+                "kms:GenerateDataKey",
+                "kms:Decrypt",
+                "kms:Encrypt"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:*:key/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "kms:KeySpec": "SYMMETRIC_DEFAULT",
+                    "kms:KeyUsage": "ENCRYPT_DECRYPT"
+                },
+                "NumericLessThanEquals": {
+                    "kms:RotationPeriod": 31536000
+                }
+            }
+        },
+        {
+            "Sid": "EmergencyProcedures",
+            "Effect": "Allow",
+            "Action": [
+                "kms:UpdateKeyDescription",
+                "kms:EnableKey",
+                "kms:DisableKey",
+                "kms:CancelKeyDeletion",
+                "kms:ReplicateKey"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:*:key/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": [
+                        "us-east-1",
+                        "us-west-2"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "ComplianceAndAuditing",
+            "Effect": "Allow",
+            "Action": [
+                "kms:ListKeys",
+                "kms:ListAliases",
+                "kms:DescribeKey",
+                "kms:GetKeyPolicy",
+                "kms:GetKeyRotationStatus",
+                "cloudwatch:PutMetricData",
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "BackupKeyManagement",
+            "Effect": "Allow",
+            "Action": [
+                "kms:CreateKey",
+                "kms:EnableKeyRotation",
+                "kms:ReplicateKey",
+                "kms:UpdatePrimaryRegion"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:*:key/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": [
+                        "us-east-1",
+                        "us-west-2"
+                    ]
+                }
+            }
+        }
+    ]
+}
