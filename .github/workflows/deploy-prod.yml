@@ -1,0 +1,138 @@
+name: Production Deployment
+
+on:
+  workflow_dispatch:  # Manual trigger with approval required
+  release:
+    types: [published]  # Automated trigger on release publication
+
+# Environment configuration
+env:
+  PROD_AWS_REGION: us-east-1
+  PROD_EKS_CLUSTER: estatekit-prod-cluster
+  DEPLOYMENT_TIMEOUT: 600s
+  SECURITY_SCAN_THRESHOLD: HIGH
+
+# Deployment environment
+environment:
+  name: production
+  url: https://api.estatekit.com
+
+# Ensure only one production deployment runs at a time
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  deployments: write
+
+jobs:
+  security-scan:
+    name: Security Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SAST Scan
+        uses: security-scan-action
+        with:
+          scan-type: static
+          severity-threshold: ${{ env.SECURITY_SCAN_THRESHOLD }}
+          fail-on-findings: true
+
+      - name: Container Scan
+        uses: container-scan-action
+        with:
+          image-ref: estatekit/business-api:latest
+          severity-threshold: ${{ env.SECURITY_SCAN_THRESHOLD }}
+          fail-on-findings: true
+
+      - name: Dependency Scan
+        uses: dependency-check-action
+        with:
+          path: src/backend
+          fail-on-findings: true
+
+      - name: Compliance Validation
+        uses: compliance-check-action
+        with:
+          standards: ['SOC2', 'GDPR', 'HIPAA']
+          fail-on-violation: true
+
+  deploy-production:
+    name: Production Deployment
+    needs: [security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::production:role/github-actions
+          aws-region: ${{ env.PROD_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.3'
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.PROD_EKS_CLUSTER }} \
+            --region ${{ env.PROD_AWS_REGION }}
+
+      - name: Pre-deployment validation
+        run: |
+          kubectl get nodes
+          kubectl cluster-info
+          kubectl get pods -n estatekit
+          kubectl get svc -n estatekit
+
+      - name: Apply secrets
+        run: |
+          kubectl apply -f src/backend/kubernetes/secrets.yaml
+          kubectl rollout status deployment/business-api -n estatekit
+          kubectl rollout status deployment/data-api -n estatekit
+
+      - name: Deploy Business API
+        run: |
+          kubectl apply -f src/backend/kubernetes/business-api-deployment.yaml
+          kubectl rollout status deployment/business-api -n estatekit --timeout=${{ env.DEPLOYMENT_TIMEOUT }}
+
+      - name: Deploy Data API
+        run: |
+          kubectl apply -f src/backend/kubernetes/data-api-deployment.yaml
+          kubectl rollout status deployment/data-api -n estatekit --timeout=${{ env.DEPLOYMENT_TIMEOUT }}
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n estatekit -l app=business-api
+          kubectl get pods -n estatekit -l app=data-api
+          kubectl describe deployments -n estatekit business-api data-api
+
+      - name: Health check
+        run: |
+          # Wait for services to be ready
+          sleep 30
+          # Check Business API health
+          curl -f https://api.estatekit.com/health
+          # Check Data API health
+          curl -f https://api.estatekit.com/data/health
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          kubectl rollout undo deployment/business-api -n estatekit
+          kubectl rollout undo deployment/data-api -n estatekit
+          echo "Deployment failed - rolling back to previous version"
+          exit 1
