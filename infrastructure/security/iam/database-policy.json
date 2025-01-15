@@ -1,0 +1,82 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RDSInstanceConnect",
+      "Effect": "Allow",
+      "Action": [
+        "rds-db:connect",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters", 
+        "rds:DescribeDBEngineVersions"
+      ],
+      "Resource": [
+        "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:estatekit-*",
+        "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:estatekit-*"
+      ]
+    },
+    {
+      "Sid": "RDSParameterAccess",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBParameters",
+        "rds:DescribeDBParameterGroups",
+        "rds:DescribeEngineDefaultParameters"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RDSEncryption",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": [
+        "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+      ],
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": "rds.${AWS::Region}.amazonaws.com"
+        },
+        "StringEquals": {
+          "aws:ResourceTag/Environment": "${AWS::EnvironmentName}"
+        }
+      }
+    },
+    {
+      "Sid": "RDSMonitoring",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricData",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams",
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "cloudwatch:namespace": "EstateKit/DatabaseMetrics"
+        }
+      }
+    },
+    {
+      "Sid": "RDSReadReplica",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstanceAutomatedBackups",
+        "rds:DescribeDBSnapshots",
+        "rds:DescribeReadReplicaStatus",
+        "rds:DescribeSourceRegions",
+        "rds:DescribeValidDBInstanceModifications"
+      ],
+      "Resource": [
+        "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:estatekit-*-replica"
+      ]
+    }
+  ]
+}
