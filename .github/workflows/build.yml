@@ -1,0 +1,169 @@
+name: EstateKit CI Build
+
+on:
+  push:
+    branches: ['main', 'release/*']
+  pull_request:
+    branches: ['main', 'release/*']
+  workflow_dispatch:
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+      fail-fast: false
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        include-prerelease: true
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: csharp
+        queries: security-extended,security-and-quality
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.NUGET_PACKAGES }}
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: |
+        dotnet restore src/backend/Business.API/Business.API.csproj
+        dotnet restore src/backend/Data.API/Data.API.csproj
+
+    - name: Build solution
+      run: |
+        dotnet build src/backend/Business.API/Business.API.csproj --configuration ${{ matrix.configuration }} --no-restore
+        dotnet build src/backend/Data.API/Data.API.csproj --configuration ${{ matrix.configuration }} --no-restore
+
+    - name: Run tests with coverage
+      run: |
+        dotnet test src/backend/Business.API.Tests --configuration ${{ matrix.configuration }} --no-build \
+          --collect:"XPlat Code Coverage" --results-directory ./coverage \
+          --logger "trx;LogFileName=test-results.trx"
+        dotnet test src/backend/Data.API.Tests --configuration ${{ matrix.configuration }} --no-build \
+          --collect:"XPlat Code Coverage" --results-directory ./coverage \
+          --logger "trx;LogFileName=test-results.trx"
+
+    - name: Generate coverage report
+      uses: danielpalme/ReportGenerator-GitHub-Action@5.1.26
+      with:
+        reports: './coverage/**/coverage.cobertura.xml'
+        targetdir: 'coveragereport'
+        reporttypes: 'HtmlInline_AzurePipelines;Cobertura;Badges'
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.configuration }}
+        path: ./coverage/*.trx
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-coverage-report-${{ matrix.configuration }}
+        path: coveragereport
+
+  security_scan:
+    name: Security Scanning
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run dependency scanning
+      uses: snyk/actions/dotnet@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+
+    - name: Run OWASP dependency check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'EstateKit'
+        path: '.'
+        format: 'HTML'
+        args: >
+          --suppression suppression.xml
+          --failOnCVSS 7
+          --enableRetired
+
+    - name: Check license compliance
+      uses: fossas/fossa-action@main
+      with:
+        api-key: ${{ secrets.FOSSA_API_KEY }}
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          dependency-check-report.html
+          fossa-report.json
+          snyk-report.json
+
+  publish:
+    name: Publish Artifacts
+    needs: [build_and_test, security_scan]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Publish Business API
+      run: |
+        dotnet publish src/backend/Business.API/Business.API.csproj \
+          --configuration Release \
+          --output ./publish/business-api
+
+    - name: Publish Data API
+      run: |
+        dotnet publish src/backend/Data.API/Data.API.csproj \
+          --configuration Release \
+          --output ./publish/data-api
+
+    - name: Upload Business API artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: business-api
+        path: ./publish/business-api
+
+    - name: Upload Data API artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: data-api
+        path: ./publish/data-api
