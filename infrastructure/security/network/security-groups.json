@@ -1,0 +1,115 @@
+{
+  "Description": "Enhanced security group configurations for EstateKit API system implementing zero-trust network architecture",
+  "securityGroups": {
+    "loadBalancerSecurityGroup": {
+      "description": "Security group for Application Load Balancer with restricted HTTPS access",
+      "ingressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 443,
+          "toPort": 443,
+          "cidrIp": "0.0.0.0/0",
+          "description": "HTTPS from internet with TLS 1.3 requirement"
+        }
+      ],
+      "egressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 443,
+          "toPort": 443,
+          "destinationSecurityGroup": "businessApiSecurityGroup",
+          "description": "HTTPS to Business API with strict TLS enforcement"
+        }
+      ]
+    },
+    "businessApiSecurityGroup": {
+      "description": "Security group for Business Logic API instances with restricted access",
+      "ingressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 443,
+          "toPort": 443,
+          "sourceSecurityGroup": "loadBalancerSecurityGroup",
+          "description": "HTTPS from ALB with mutual TLS authentication"
+        }
+      ],
+      "egressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 443,
+          "toPort": 443,
+          "destinationSecurityGroup": "dataApiSecurityGroup", 
+          "description": "HTTPS to Data API with end-to-end encryption"
+        },
+        {
+          "protocol": "tcp",
+          "fromPort": 6379,
+          "toPort": 6379,
+          "destinationSecurityGroup": "redisSecurityGroup",
+          "description": "Redis access with SSL/TLS encryption"
+        }
+      ]
+    },
+    "dataApiSecurityGroup": {
+      "description": "Security group for Data Access API instances with private network isolation",
+      "ingressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 443,
+          "toPort": 443,
+          "sourceSecurityGroup": "businessApiSecurityGroup",
+          "description": "HTTPS from Business API with certificate-based authentication"
+        }
+      ],
+      "egressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 5432,
+          "toPort": 5432,
+          "destinationSecurityGroup": "databaseSecurityGroup",
+          "description": "PostgreSQL access with SSL enforcement"
+        },
+        {
+          "protocol": "tcp",
+          "fromPort": 6379,
+          "toPort": 6379,
+          "destinationSecurityGroup": "redisSecurityGroup",
+          "description": "Redis access with SSL/TLS encryption"
+        }
+      ]
+    },
+    "databaseSecurityGroup": {
+      "description": "Security group for PostgreSQL RDS instances with maximum isolation",
+      "ingressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 5432,
+          "toPort": 5432,
+          "sourceSecurityGroup": "dataApiSecurityGroup",
+          "description": "PostgreSQL from Data API with SSL verification"
+        }
+      ],
+      "egressRules": []
+    },
+    "redisSecurityGroup": {
+      "description": "Security group for Redis cache cluster with encrypted communications",
+      "ingressRules": [
+        {
+          "protocol": "tcp",
+          "fromPort": 6379,
+          "toPort": 6379,
+          "sourceSecurityGroup": "businessApiSecurityGroup",
+          "description": "Redis from Business API with SSL/TLS encryption"
+        },
+        {
+          "protocol": "tcp",
+          "fromPort": 6379,
+          "toPort": 6379,
+          "sourceSecurityGroup": "dataApiSecurityGroup",
+          "description": "Redis from Data API with SSL/TLS encryption"
+        }
+      ],
+      "egressRules": []
+    }
+  }
+}
