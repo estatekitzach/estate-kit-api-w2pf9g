@@ -55,7 +55,8 @@ namespace EstateKit.Data.API
                 services.AddSecurityServices(Configuration);
 
                 // Configure AWS services
-                services.AddAWSService<IAmazonKeyManagementService>();
+                //Todo: Have a method that calls to the vault service to encrypt, decrypt and store keys
+                // services.AddAWSService<IAmazonKeyManagementService>();
                 services.AddAWSService<IAmazonCloudWatch>();
 
                 // Configure API versioning

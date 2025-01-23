@@ -1,5 +1,7 @@
 using System; // Version 9.0.0 - Core .NET functionality for enum definition
 
+namespace EstateKit.Core.Enums;
+
 /// <summary>
 /// Comprehensive enumeration of supported asset types in the estate planning system,
 /// providing standardized categorization for all physical assets and property.
@@ -10,7 +12,7 @@ public enum AssetType
     /// Real estate property assets including residential homes, commercial buildings,
     /// land parcels, and investment properties
     /// </summary>
-    REAL_ESTATE,
+    REALESTATE,
 
     /// <summary>
     /// Motorized vehicles including cars, trucks, motorcycles, boats, aircraft,
@@ -22,7 +24,7 @@ public enum AssetType
     /// Bank safety deposit boxes containing valuable items, documents,
     /// or other secured possessions
     /// </summary>
-    SAFETY_DEPOSIT_BOX,
+    SAFETYDEPOSITBOX,
 
     /// <summary>
     /// Valuable jewelry items including precious stones, watches,
@@ -52,13 +54,13 @@ public enum AssetType
     /// Assets related to business ownership including equipment,
     /// inventory, and intellectual property
     /// </summary>
-    BUSINESS_ASSET,
+    BUSINESSASSET,
 
     /// <summary>
     /// Precious metals including gold, silver, platinum,
     /// and other valuable metal holdings
     /// </summary>
-    PRECIOUS_METAL,
+    PRECIOUSMETAL,
 
     /// <summary>
     /// Valuable equipment and machinery including tools,

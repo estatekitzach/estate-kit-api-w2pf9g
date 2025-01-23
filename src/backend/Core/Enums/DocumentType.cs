@@ -20,7 +20,7 @@ namespace EstateKit.Core.Enums
         /// OCR Required: Yes
         /// Audit Level: Detailed
         /// </summary>
-        DRIVERS_LICENSE = 0,
+        DRIVERSLICENSE = 0,
 
         /// <summary>
         /// Government-issued passport document with strict security requirements.
@@ -36,6 +36,6 @@ namespace EstateKit.Core.Enums
         /// OCR Required: Yes
         /// Audit Level: Detailed
         /// </summary>
-        BIRTH_CERTIFICATE = 2
+        BIRTHCERTIFICATE = 2
     }
 }

@@ -1,12 +1,10 @@
 using System;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using Amazon.KeyManagementService;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using System.Text;
 using System.Security.Cryptography.X509Certificates;
-using Amazon.KeyManagementService.Model;
 using System.Collections.Generic;
 
 namespace EstateKit.Infrastructure.Security

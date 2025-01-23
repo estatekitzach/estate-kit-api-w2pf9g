@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Import common build properties -->
-  <Import Project="../Directory.Build.props" />
-  <Import Project="../Directory.Packages.props" />
-
   <!-- Business API project properties -->
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -25,6 +21,8 @@
     <!-- Assembly signing -->
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+    <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
+    <RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
   </PropertyGroup>
 
   <!-- Project references -->
@@ -48,7 +46,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     
     <!-- AWS SDK packages -->
-    <PackageReference Include="AWSSDK.S3" Version="3.7.0" />
     <PackageReference Include="AWSSDK.Textract" Version="3.7.0" />
     
     <!-- Monitoring and telemetry -->

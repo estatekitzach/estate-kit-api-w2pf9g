@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Import common build properties -->
+  <!-- Import common build properties
   <Import Project="../Directory.Build.props" />
-  <Import Project="../Directory.Packages.props" />
+  <Import Project="../Directory.Packages.props" /> -->
 
   <!-- Core project properties -->
   <PropertyGroup>
@@ -21,22 +21,25 @@
     
     <!-- Assembly signing -->
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>EstateKit.Core.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Models\Contact.cs" />
+    <Compile Remove="Models\Document.cs" />
+    <Compile Remove="Models\Identifier.cs" />
+    <Compile Remove="Models\User.cs" />
+    <Compile Remove="Models\UserAsset.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" />
+    <PackageReference Include="System.ComponentModel.Annotations" />
+    <PackageReference Include="System.Security.Cryptography.Algorithms" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Models\Contact\" />
+    <Folder Include="Models\UserModels\" />
+  </ItemGroup>
 
   <!-- Package references -->
-  <ItemGroup>
-    <!-- Data annotations for entity validation -->
-    <PackageReference Include="System.ComponentModel.Annotations" 
-                      Version="$(SystemComponentModelAnnotationsVersion)" />
-    
-    <!-- Data protection for field-level encryption -->
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" 
-                      Version="$(AspNetCoreDataProtectionVersion)" />
-    
-    <!-- Cryptographic operations -->
-    <PackageReference Include="System.Security.Cryptography.Algorithms" 
-                      Version="$(SystemSecurityCryptographyVersion)" />
-  </ItemGroup>
 
 </Project>

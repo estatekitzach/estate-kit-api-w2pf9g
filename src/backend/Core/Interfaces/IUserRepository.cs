@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using EstateKit.Core.Entities;
+using EstateKit.Core.Models.UserModels;
 
 namespace EstateKit.Core.Interfaces
 {
@@ -21,7 +21,7 @@ namespace EstateKit.Core.Interfaces
         /// - Includes related Contact, Documents, Identifiers, and Assets
         /// - Logs access attempt in audit trail
         /// </remarks>
-        Task<User?> GetByIdAsync(Guid id);
+        Task<User?> GetByIdAsync(int id);
 
         /// <summary>
         /// Retrieves all active users with proper decryption of sensitive fields.
@@ -72,7 +72,7 @@ namespace EstateKit.Core.Interfaces
         /// - Creates deletion audit entry
         /// - Updates security stamp
         /// </remarks>
-        Task<bool> DeleteAsync(Guid id);
+        Task<bool> DeleteAsync(int id);
 
         /// <summary>
         /// Retrieves a user by their contact ID with proper decryption.
@@ -84,7 +84,7 @@ namespace EstateKit.Core.Interfaces
         /// - Includes related entities
         /// - Logs access in audit trail
         /// </remarks>
-        Task<User?> GetByContactIdAsync(Guid contactId);
+        Task<User?> GetByContactIdAsync(int contactId);
 
         /// <summary>
         /// Retrieves users with specific document types, handling encrypted data appropriately.

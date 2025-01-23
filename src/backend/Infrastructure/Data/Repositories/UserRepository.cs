@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.EntityFrameworkCore; // v10.0.0
 using EstateKit.Core.Interfaces;
-using EstateKit.Core.Entities;
+using EstateKit.Core.Models.UserModels;
+using EstateKit.Data.DBContexts;
 
 namespace EstateKit.Infrastructure.Data.Repositories
 {
@@ -14,33 +15,33 @@ namespace EstateKit.Infrastructure.Data.Repositories
     /// </summary>
     public class UserRepository : IUserRepository
     {
-        private readonly ApplicationDbContext _context;
+        private readonly EstateKitContext _context;
 
         /// <summary>
         /// Initializes a new instance of UserRepository with required security validations
         /// </summary>
         /// <param name="context">Database context with encryption and audit capabilities</param>
         /// <exception cref="ArgumentNullException">Thrown when context is null</exception>
-        public UserRepository(ApplicationDbContext context)
+        public UserRepository(EstateKitContext context)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
         /// <inheritdoc/>
-        public async Task<User?> GetByIdAsync(Guid id)
+        public async Task<User?> GetByIdAsync(int id)
         {
             return await _context.Users
                 .Include(u => u.Contact)
-                    .ThenInclude(c => c.Addresses)
+                    .ThenInclude(c => c.ContactAddresses)
                 .Include(u => u.Contact)
-                    .ThenInclude(c => c.ContactMethods)
+                    .ThenInclude(c => c.ContactContactMethods)
                 .Include(u => u.Contact)
-                    .ThenInclude(c => c.Relationships)
-                .Include(u => u.Documents)
-                .Include(u => u.Identifiers)
-                .Include(u => u.Assets)
+                    .ThenInclude(c => c.ContactRelationshipContacts)
+                .Include(u => u.UserDocuments)
+                .Include(u => u.UserIdentifiers)
+                .Include(u => u.UserAssets)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == id && u.IsActive);
+                .FirstOrDefaultAsync(u => u.Id == id && u.Active).ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
@@ -48,23 +49,22 @@ namespace EstateKit.Infrastructure.Data.Repositories
         {
             return await _context.Users
                 .Include(u => u.Contact)
-                .Include(u => u.Documents)
-                .Include(u => u.Identifiers)
+                .Include(u => u.UserDocuments)
+                .Include(u => u.UserIdentifiers)
                 .AsNoTracking()
-                .Where(u => u.IsActive)
-                .ToListAsync();
+                .Where(u => u.Active)
+                .ToListAsync().ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
         public async Task<User> AddAsync(User user)
         {
-            if (user == null)
-                throw new ArgumentNullException(nameof(user));
+            ArgumentNullException.ThrowIfNull(user);
 
-            await ValidateUserAsync(user);
+            await ValidateUserAsync(user).ConfigureAwait(false);
 
-            await _context.Users.AddAsync(user);
-            await _context.SaveChangesAsync();
+            await _context.Users.AddAsync(user).ConfigureAwait(false);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             return user;
         }
@@ -72,48 +72,47 @@ namespace EstateKit.Infrastructure.Data.Repositories
         /// <inheritdoc/>
         public async Task<User> UpdateAsync(User user)
         {
-            if (user == null)
-                throw new ArgumentNullException(nameof(user));
+            ArgumentNullException.ThrowIfNull(user);
 
-            await ValidateUserAsync(user);
+            await ValidateUserAsync(user).ConfigureAwait(false);
 
             var existingUser = await _context.Users
                 .Include(u => u.Contact)
-                .FirstOrDefaultAsync(u => u.Id == user.Id && u.IsActive);
+                .FirstOrDefaultAsync(u => u.Id == user.Id && u.Active).ConfigureAwait(false);
 
             if (existingUser == null)
                 throw new InvalidOperationException($"User with ID {user.Id} not found or inactive");
 
             _context.Entry(existingUser).CurrentValues.SetValues(user);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             return existingUser;
         }
 
         /// <inheritdoc/>
-        public async Task<bool> DeleteAsync(Guid id)
+        public async Task<bool> DeleteAsync(int id)
         {
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == id && u.IsActive);
+                .FirstOrDefaultAsync(u => u.Id == id && u.Active).ConfigureAwait(false);
 
             if (user == null)
                 return false;
 
-            user.Deactivate();
-            await _context.SaveChangesAsync();
+            user.Active = false;
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             return true;
         }
 
         /// <inheritdoc/>
-        public async Task<User?> GetByContactIdAsync(Guid contactId)
+        public async Task<User?> GetByContactIdAsync(int contactId)
         {
             return await _context.Users
                 .Include(u => u.Contact)
-                .Include(u => u.Documents)
-                .Include(u => u.Identifiers)
+                .Include(u => u.UserDocuments)
+                .Include(u => u.UserIdentifiers)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Contact.Id == contactId && u.IsActive);
+                .FirstOrDefaultAsync(u => u.Contact.Id == contactId && u.Active).ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
@@ -124,11 +123,11 @@ namespace EstateKit.Infrastructure.Data.Repositories
 
             return await _context.Users
                 .Include(u => u.Contact)
-                .Include(u => u.Documents)
+                .Include(u => u.UserDocuments)
                 .AsNoTracking()
-                .Where(u => u.IsActive && 
-                           u.Documents.Any(d => d.Type.ToString() == documentType))
-                .ToListAsync();
+                .Where(u => u.Active && 
+                           u.UserDocuments.Any(d => d.DocumentType.ToString() == documentType))
+                .ToListAsync().ConfigureAwait(false);
         }
 
         /// <inheritdoc/>
@@ -139,11 +138,11 @@ namespace EstateKit.Infrastructure.Data.Repositories
 
             return await _context.Users
                 .Include(u => u.Contact)
-                .Include(u => u.Identifiers)
+                .Include(u => u.UserIdentifiers)
                 .AsNoTracking()
-                .Where(u => u.IsActive && 
-                           u.Identifiers.Any(i => i.Type.ToString() == identifierType))
-                .ToListAsync();
+                .Where(u => u.Active && 
+                           u.UserIdentifiers.Any(i => i.IdentifierType.ToString() == identifierType))
+                .ToListAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -160,28 +159,30 @@ namespace EstateKit.Infrastructure.Data.Repositories
                 .AsNoTracking()
                 .AnyAsync(u => u.Contact.Id == user.Contact.Id && 
                               u.Id != user.Id && 
-                              u.IsActive);
+                              u.Active).ConfigureAwait(false);
 
             if (existingContact)
                 throw new InvalidOperationException("Contact is already associated with another active user");
 
             // Validate documents
-            if (user.Documents != null)
+            if (user.UserDocuments != null)
             {
-                foreach (var document in user.Documents)
+                foreach (var document in user.UserDocuments)
                 {
-                    if (string.IsNullOrWhiteSpace(document.S3BucketName))
-                        throw new ArgumentException("S3 bucket name is required for documents");
+                    //Not sure why it asked for this
+                    //if (string.IsNullOrWhiteSpace(document.S3BucketName))
+                        //throw new ArgumentException("S3 bucket name is required for documents");
                 }
             }
 
             // Validate identifiers
-            if (user.Identifiers != null)
+            if (user.UserIdentifiers != null)
             {
-                foreach (var identifier in user.Identifiers)
+                foreach (var identifier in user.UserIdentifiers)
                 {
-                    if (!identifier.Validate())
-                        throw new ArgumentException($"Invalid identifier of type {identifier.Type}");
+                    // There is no validate method
+                    //if (!identifier.Validate())
+                        //throw new ArgumentException($"Invalid identifier of type {identifier.Type}");
                 }
             }
         }

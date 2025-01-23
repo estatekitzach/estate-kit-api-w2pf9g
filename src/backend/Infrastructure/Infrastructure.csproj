@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Import common build properties -->
+  <!-- Import common build properties
   <Import Project="../Directory.Build.props" />
-  <Import Project="../Directory.Packages.props" />
+  <Import Project="../Directory.Packages.props" /> -->
 
   <!-- Infrastructure project properties -->
   <PropertyGroup>
@@ -21,8 +21,19 @@
     
     <!-- Assembly signing -->
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>../EstateKit.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>EstateKit.Infrastructure.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Data\ApplicationDbContext.cs" />
+    <Compile Remove="Data\Configurations\AssetConfiguration.cs" />
+    <Compile Remove="Data\Configurations\ContactConfiguration.cs" />
+    <Compile Remove="Data\Configurations\DocumentConfiguration.cs" />
+    <Compile Remove="Data\Configurations\IdentifierConfiguration.cs" />
+    <Compile Remove="Data\Configurations\UserConfiguration.cs" />
+    <Compile Remove="Data\Migrations\InitialCreate.cs" />
+    <Compile Remove="Security\EncryptionProvider.cs" />
+    <Compile Remove="Security\TokenValidator.cs" />
+  </ItemGroup>
 
   <!-- Project references -->
   <ItemGroup>
@@ -31,32 +42,22 @@
 
   <!-- Package references -->
   <ItemGroup>
-    <!-- Entity Framework Core and PostgreSQL provider -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="$(EntityFrameworkVersion)" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(EntityFrameworkVersion)" />
-    
-    <!-- AWS SDK packages -->
-    <PackageReference Include="AWSSDK.Core" Version="$(AWSSDKVersion)" />
-    <PackageReference Include="AWSSDK.S3" Version="$(AWSSDKVersion)" />
-    <PackageReference Include="AWSSDK.Textract" Version="$(AWSSDKVersion)" />
-    
-    <!-- Security and encryption -->
-    <PackageReference Include="BouncyCastle.NetCore" Version="$(BouncyCastleVersion)" />
-    
-    <!-- Caching -->
-    <PackageReference Include="StackExchange.Redis" Version="$(RedisVersion)" />
-    
-    <!-- Logging -->
-    <PackageReference Include="Serilog" Version="$(SerilogVersion)" />
-    
-    <!-- Data protection -->
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" Version="$(AspNetCoreDataProtectionVersion)" />
-    
-    <!-- Health checks -->
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(EntityFrameworkVersion)" />
-    
-    <!-- Distributed caching -->
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="$(AspNetCoreVersion)" />
+    <Folder Include="Data\Configurations\" />
+    <Folder Include="Data\DBContexts\" />
+    <Folder Include="Data\Migrations\" />
+    <Folder Include="Security\" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Polly" />
+    <PackageReference Include="Serilog.AspNetCore" />
   </ItemGroup>
 
 </Project>

@@ -12,6 +12,11 @@ namespace EstateKit.Core.Enums
     public enum RelationshipType
     {
         /// <summary>
+        /// Represents no relationship
+        /// </summary>
+        NONE = 0,
+
+        /// <summary>
         /// Represents a legally recognized marital relationship between contacts
         /// </summary>
         SPOUSE = 1,

@@ -3,8 +3,7 @@
 // System.Threading.Tasks v9.0.0
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using EstateKit.Core.Entities;
+using EstateKit.Core.Models.ContactModels;
 
 namespace EstateKit.Core.Interfaces
 {
@@ -25,15 +24,7 @@ namespace EstateKit.Core.Interfaces
         /// - Sensitive: Contact Info
         /// - Internal: Relationships
         /// </remarks>
-        Task<Contact?> GetByIdAsync(Guid id);
-
-        /// <summary>
-        /// Retrieves all contacts with pagination support and automatic field decryption.
-        /// </summary>
-        /// <param name="skip">Number of records to skip for pagination</param>
-        /// <param name="take">Number of records to take per page</param>
-        /// <returns>Collection of decrypted contacts</returns>
-        Task<IEnumerable<Contact>> GetAllAsync(int? skip = null, int? take = null);
+        Task<Contact?> GetByIdAsync(int id);
 
         /// <summary>
         /// Adds a new contact with automatic encryption of sensitive fields based on security classification.

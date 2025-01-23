@@ -1,0 +1,6 @@
+@EstateKit.Data.Api_HostAddress = http://localhost:5162
+
+GET {{EstateKit.Data.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
